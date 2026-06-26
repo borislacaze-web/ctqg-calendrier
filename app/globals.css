@@ -1,0 +1,104 @@
+/* app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --ctqg-blue:   #1E3A8A;
+    --ctqg-orange: #F97316;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+  }
+}
+
+@layer components {
+  /* Cellules du planning */
+  .planning-cell {
+    @apply border border-slate-200 p-1 min-h-[60px] align-top text-xs;
+  }
+
+  /* Badge événement dans le planning */
+  .event-badge {
+    @apply rounded px-1 py-0.5 mb-0.5 text-[11px] leading-tight font-medium
+           cursor-pointer hover:opacity-80 transition-opacity truncate block
+           border-l-2;
+  }
+
+  /* Ligne de semaine (hover) */
+  .week-row:hover {
+    @apply bg-blue-50/40;
+  }
+
+  /* Statuts */
+  .status-previsionnel { @apply border-gray-400 bg-gray-50 text-gray-700; }
+  .status-confirme     { @apply border-green-500 bg-green-50 text-green-800; }
+  .status-annule       { @apply border-red-400 bg-red-50 text-red-600 line-through; }
+  .status-reporte      { @apply border-orange-400 bg-orange-50 text-orange-700; }
+
+  /* Bouton primaire */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg
+           bg-blue-700 text-white font-medium text-sm
+           hover:bg-blue-800 active:scale-[0.98]
+           transition-all disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg
+           bg-white text-slate-700 font-medium text-sm border border-slate-300
+           hover:bg-slate-50 active:scale-[0.98]
+           transition-all disabled:opacity-50;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg
+           bg-red-600 text-white font-medium text-sm
+           hover:bg-red-700 active:scale-[0.98]
+           transition-all;
+  }
+
+  /* Input */
+  .input {
+    @apply w-full px-3 py-2 rounded-lg border border-slate-300 text-sm
+           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           placeholder:text-slate-400;
+  }
+
+  /* Label */
+  .label {
+    @apply block text-sm font-medium text-slate-700 mb-1;
+  }
+
+  /* Card */
+  .card {
+    @apply bg-white rounded-xl border border-slate-200 shadow-sm;
+  }
+}
+
+/* Animation modale */
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out;
+}
+
+/* Scroll horizontal sur le planning en mobile */
+.planning-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Taille minimale des colonnes du planning */
+.planning-table {
+  min-width: 900px;
+}
