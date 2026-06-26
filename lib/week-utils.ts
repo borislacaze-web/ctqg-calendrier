@@ -22,18 +22,20 @@ const VACANCES_ZONE_C: Record<string, { start: string; end: string }[]> = {
     { start: '2026-07-04', end: '2026-08-31' }, // Été
   ],
   '2026/2027': [
-    { start: '2026-10-17', end: '2026-11-02' }, // Toussaint
-    { start: '2026-12-19', end: '2027-01-04' }, // Noël
-    { start: '2027-02-13', end: '2027-03-01' }, // Hiver
-    { start: '2027-04-10', end: '2027-04-26' }, // Printemps
-    { start: '2027-07-03', end: '2027-08-31' }, // Été
+    { start: '2026-07-04', end: '2026-08-31' }, // Grandes vacances été 2026
+    { start: '2026-10-17', end: '2026-11-01' }, // Toussaint (fin sam 17/10, reprise lun 2/11)
+    { start: '2026-12-19', end: '2027-01-03' }, // Noël (fin sam 19/12, reprise lun 4/01)
+    { start: '2027-02-06', end: '2027-02-21' }, // Hiver Zone C (fin sam 6/02, reprise lun 22/02)
+    { start: '2027-04-03', end: '2027-04-18' }, // Printemps Zone C (fin sam 3/04, reprise lun 19/04)
+    { start: '2027-07-03', end: '2027-08-31' }, // Grandes vacances été 2027
   ],
   '2027/2028': [
+    { start: '2027-07-03', end: '2027-08-31' }, // Grandes vacances été 2027
     { start: '2027-10-23', end: '2027-11-08' }, // Toussaint
     { start: '2027-12-18', end: '2028-01-03' }, // Noël
-    { start: '2028-02-19', end: '2028-03-06' }, // Hiver
-    { start: '2028-04-15', end: '2028-05-01' }, // Printemps
-    { start: '2028-07-01', end: '2028-08-31' }, // Été
+    { start: '2028-02-19', end: '2028-03-06' }, // Hiver Zone C
+    { start: '2028-04-15', end: '2028-05-01' }, // Printemps Zone C
+    { start: '2028-07-01', end: '2028-08-31' }, // Grandes vacances été 2028
   ],
 }
 
