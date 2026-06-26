@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  CalendarDays, LayoutList, Table2, Settings,
+  Table2, Settings,
   LogOut, LogIn, Menu, X, Shield
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -13,8 +13,6 @@ import { cn } from '@/lib/utils'
 
 const NAV_LINKS = [
   { href: '/',          label: 'Planning',   icon: Table2 },
-  { href: '/calendar',  label: 'Calendrier', icon: CalendarDays },
-  { href: '/list',      label: 'Liste',      icon: LayoutList },
 ]
 
 export default function Navbar() {
