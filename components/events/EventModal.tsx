@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import {
   X, MapPin, Calendar, Tag, FileText,
-  AlertCircle, CheckCircle, Clock, RotateCcw, Pencil, Trash2
+  AlertCircle, CheckCircle, Clock, RotateCcw, Pencil, Trash2, Copy
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -31,9 +31,10 @@ interface Props {
   onClose: () => void
   onEdit?: (event: CalendarEvent) => void
   onDelete?: (event: CalendarEvent) => void
+  onDuplicate?: (event: CalendarEvent) => void
 }
 
-export default function EventModal({ event, isAdmin, onClose, onEdit, onDelete }: Props) {
+export default function EventModal({ event, isAdmin, onClose, onEdit, onDelete, onDuplicate }: Props) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -156,7 +157,15 @@ export default function EventModal({ event, isAdmin, onClose, onEdit, onDelete }
 
         {/* Pied de page (admin) */}
         {isAdmin && (
-          <div className="px-6 pb-4 flex gap-2 justify-end border-t border-slate-100 pt-3">
+          <div className="px-6 pb-4 flex gap-2 justify-end border-t border-slate-100 pt-3 flex-wrap">
+            <button
+              onClick={() => { onDuplicate?.(event); onClose() }}
+              className="btn-secondary text-sm"
+              title="Créer une copie de cet événement"
+            >
+              <Copy className="w-4 h-4" />
+              Dupliquer
+            </button>
             <button
               onClick={() => { onEdit?.(event); onClose() }}
               className="btn-secondary text-sm"

@@ -5,7 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import type { CalendarEvent, Category, Season } from '@/types'
-import { getSeasonWeeks, assignEventsToWeeks } from '@/lib/week-utils'
+import { getSeasonWeeks, assignEventsToWeeks, isSchoolHoliday, formatShortDate } from '@/lib/week-utils'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -29,12 +29,10 @@ export default function PlanningView({
     return assignEventsToWeeks(allWeeks, events)
   }, [season, events])
 
-  // Catégories visibles (filtre actif ou toutes)
   const visibleCats = filterCategoryId
     ? categories.filter(c => c.id === filterCategoryId)
     : categories
 
-  // Regrouper semaines par mois (selon le lundi)
   const weeksByMonth = useMemo(() => {
     const map = new Map<string, typeof weeks>()
     for (const week of weeks) {
@@ -75,7 +73,6 @@ export default function PlanningView({
   return (
     <div className="planning-scroll">
       <table className="planning-table w-full border-collapse text-xs">
-        {/* En-tête fixe : catégories */}
         <thead className="sticky top-0 z-20 bg-white">
           <tr>
             <th className="border border-slate-300 bg-blue-800 text-white px-2 py-2 text-left min-w-[80px] w-20 font-semibold">
@@ -102,12 +99,10 @@ export default function PlanningView({
             const monthLabel = format(monthWeeks[0].monday, 'MMMM yyyy', { locale: fr })
             const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
 
-            // Vérifier si ce mois a des événements visibles
             const hasEvents = monthWeeks.some(w =>
               visibleCats.some(cat => getWeekEvents(w.events, cat.id).length > 0)
             )
 
-            // Filtrer par mois si filtre actif
             if (filterMonth) {
               const monthNum = parseInt(filterMonth)
               const weekMonths = monthWeeks.map(w => w.monday.getMonth() + 1)
@@ -116,7 +111,6 @@ export default function PlanningView({
 
             return (
               <>
-                {/* Ligne mois */}
                 <tr key={`month-${monthKey}`}>
                   <td
                     colSpan={2 + visibleCats.length}
@@ -138,43 +132,70 @@ export default function PlanningView({
                   </td>
                 </tr>
 
-                {/* Lignes semaines du mois */}
-                {!isCollapsed && monthWeeks.map(week => (
-                  <tr key={`week-${week.week_number}`} className="week-row">
-                    {/* Numéro semaine */}
-                    <td className="border border-slate-200 bg-blue-50 text-center font-bold text-blue-800 px-1 py-1 align-top">
-                      <span className="text-[13px]">S{week.week_number}</span>
-                    </td>
+                {!isCollapsed && monthWeeks.map(week => {
+                  const isHoliday = isSchoolHoliday(week.monday, season.name)
 
-                    {/* Dates Ven/Sam/Dim */}
-                    <td className="border border-slate-200 bg-slate-50 text-slate-500 px-1 py-1 align-top text-[10px] leading-relaxed">
-                      <div>{format(week.friday,   'dd/MM')}</div>
-                      <div>{format(week.saturday, 'dd/MM')}</div>
-                      <div>{format(week.sunday,   'dd/MM')}</div>
-                    </td>
+                  return (
+                    <tr
+                      key={`week-${week.week_number}`}
+                      className="week-row"
+                      style={isHoliday ? { backgroundColor: '#fef9c3' } : {}}
+                    >
+                      {/* Numéro semaine */}
+                      <td
+                        className="border border-slate-200 text-center font-bold px-1 py-1 align-top"
+                        style={isHoliday
+                          ? { backgroundColor: '#fef08a', color: '#854d0e' }
+                          : { backgroundColor: '#eff6ff', color: '#1e40af' }
+                        }
+                      >
+                        <span className="text-[13px]">S{week.week_number}</span>
+                        {isHoliday && (
+                          <span className="block text-[9px] font-normal mt-0.5" style={{ color: '#854d0e' }}>
+                            Vacances
+                          </span>
+                        )}
+                      </td>
 
-                    {/* Cellules événements par catégorie */}
-                    {visibleCats.map(cat => {
-                      const catEvents = getWeekEvents(week.events, cat.id)
-                      return (
-                        <td
-                          key={cat.id}
-                          className="planning-cell"
-                          style={{ borderLeftColor: cat.color + '66' }}
-                        >
-                          {catEvents.map(ev => (
-                            <EventBadge
-                              key={ev.id}
-                              event={ev}
-                              categoryColor={ev.color ?? cat.color}
-                              onClick={() => onEventClick(ev)}
-                            />
-                          ))}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
+                      {/* Dates Ven/Sam/Dim */}
+                      <td
+                        className="border border-slate-200 px-1 py-1 align-top text-[10px] leading-relaxed"
+                        style={isHoliday
+                          ? { backgroundColor: '#fef9c3', color: '#854d0e' }
+                          : { backgroundColor: '#f8fafc', color: '#64748b' }
+                        }
+                      >
+                        <div>{format(week.friday,   'dd/MM')}</div>
+                        <div>{format(week.saturday, 'dd/MM')}</div>
+                        <div>{format(week.sunday,   'dd/MM')}</div>
+                      </td>
+
+                      {/* Cellules événements par catégorie */}
+                      {visibleCats.map(cat => {
+                        const catEvents = getWeekEvents(week.events, cat.id)
+                        return (
+                          <td
+                            key={cat.id}
+                            className="planning-cell"
+                            style={{
+                              borderLeftColor: cat.color + '66',
+                              backgroundColor: isHoliday ? '#fef9c3' : undefined,
+                            }}
+                          >
+                            {catEvents.map(ev => (
+                              <EventBadge
+                                key={ev.id}
+                                event={ev}
+                                categoryColor={ev.color ?? cat.color}
+                                onClick={() => onEventClick(ev)}
+                              />
+                            ))}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
               </>
             )
           })}
@@ -198,9 +219,11 @@ function EventBadge({
     reporte:      'opacity-80',
   }[event.status]
 
-  const title = event.subcategory
+  const subTitle = event.subcategory
     ? `${event.subcategory.name} — ${event.title}`
     : event.title
+
+  const shortDate = formatShortDate(event.start_date)
 
   return (
     <button
@@ -211,12 +234,14 @@ function EventBadge({
         borderLeftColor: categoryColor,
         color: categoryColor,
       }}
-      title={`${title}${event.location ? ` · ${event.location}` : ''}`}
+      title={`${subTitle}${event.location ? ` · ${event.location}` : ''}`}
     >
-      {event.location
-        ? <><strong>{title}</strong> <span className="opacity-70">· {event.location}</span></>
-        : title
-      }
+      <span className="opacity-60 font-normal">{shortDate}</span>
+      {' '}
+      <strong>{subTitle}</strong>
+      {event.location && (
+        <span className="opacity-60"> · {event.location}</span>
+      )}
     </button>
   )
 }

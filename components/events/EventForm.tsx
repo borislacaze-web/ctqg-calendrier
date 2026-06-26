@@ -91,7 +91,7 @@ export default function EventForm({ event, season, categories, subcategories, on
 
       let eventId = event?.id
 
-      if (event) {
+      if (event?.id) {
         const { error } = await supabase.from('events').update(payload).eq('id', event.id)
         if (error) throw error
         toast.success('Événement modifié')
@@ -103,7 +103,7 @@ export default function EventForm({ event, season, categories, subcategories, on
           .single()
         if (error) throw error
         eventId = created.id
-        toast.success('Événement créé')
+        toast.success(event?.title?.startsWith('Copie') ? 'Événement dupliqué' : 'Événement créé')
       }
 
       // Upload des fichiers
@@ -157,7 +157,12 @@ export default function EventForm({ event, season, categories, subcategories, on
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-900">
-            {event ? 'Modifier l\'événement' : 'Nouvel événement'}
+            {event?.id
+              ? 'Modifier l\'événement'
+              : event
+                ? 'Dupliquer l\'événement'
+                : 'Nouvel événement'
+            }
           </h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100">
             <X className="w-5 h-5 text-slate-600" />
@@ -307,7 +312,7 @@ export default function EventForm({ event, season, categories, subcategories, on
             </button>
             <button type="submit" disabled={saving || uploading} className="btn-primary">
               {(saving || uploading) && <Loader2 className="w-4 h-4 animate-spin" />}
-              {event ? 'Enregistrer' : 'Créer l\'événement'}
+              {event?.id ? 'Enregistrer' : event ? 'Créer la copie' : 'Créer l\'événement'}
             </button>
           </div>
         </form>

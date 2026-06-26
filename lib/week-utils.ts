@@ -1,10 +1,64 @@
 // lib/week-utils.ts
 import {
   startOfWeek, endOfWeek, addWeeks, eachWeekOfInterval,
-  getISOWeek, format, parseISO, isWithinInterval, addDays
+  getISOWeek, format, parseISO, isWithinInterval, addDays,
+  isWithinInterval as dateInInterval
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { SportWeek, CalendarEvent } from '@/types'
+
+// ============================================================
+// VACANCES SCOLAIRES ZONE C
+// Format : { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' }
+// Générées automatiquement pour chaque saison connue.
+// Ajouter les saisons futures ici au fur et à mesure.
+// ============================================================
+const VACANCES_ZONE_C: Record<string, { start: string; end: string }[]> = {
+  '2025/2026': [
+    { start: '2025-10-18', end: '2025-11-03' }, // Toussaint
+    { start: '2025-12-20', end: '2026-01-05' }, // Noël
+    { start: '2026-02-14', end: '2026-03-02' }, // Hiver
+    { start: '2026-04-11', end: '2026-04-27' }, // Printemps
+    { start: '2026-07-04', end: '2026-08-31' }, // Été
+  ],
+  '2026/2027': [
+    { start: '2026-10-17', end: '2026-11-02' }, // Toussaint
+    { start: '2026-12-19', end: '2027-01-04' }, // Noël
+    { start: '2027-02-13', end: '2027-03-01' }, // Hiver
+    { start: '2027-04-10', end: '2027-04-26' }, // Printemps
+    { start: '2027-07-03', end: '2027-08-31' }, // Été
+  ],
+  '2027/2028': [
+    { start: '2027-10-23', end: '2027-11-08' }, // Toussaint
+    { start: '2027-12-18', end: '2028-01-03' }, // Noël
+    { start: '2028-02-19', end: '2028-03-06' }, // Hiver
+    { start: '2028-04-15', end: '2028-05-01' }, // Printemps
+    { start: '2028-07-01', end: '2028-08-31' }, // Été
+  ],
+}
+
+/**
+ * Retourne true si la semaine (lundi→dimanche) chevauche des vacances scolaires Zone C.
+ */
+export function isSchoolHoliday(monday: Date, seasonName: string): boolean {
+  const periods = VACANCES_ZONE_C[seasonName] ?? []
+  const sunday = addDays(monday, 6)
+  return periods.some(p => {
+    const pStart = parseISO(p.start)
+    const pEnd   = parseISO(p.end)
+    return monday <= pEnd && sunday >= pStart
+  })
+}
+
+/**
+ * Formate la date de début d'un événement en "Ven 24/07".
+ */
+export function formatShortDate(dateStr: string): string {
+  const d = parseISO(dateStr)
+  const jour = format(d, 'EEE', { locale: fr })
+  const jouCap = jour.charAt(0).toUpperCase() + jour.slice(1, 3)
+  return `${jouCap} ${format(d, 'dd/MM')}`
+}
 
 /**
  * Retourne le lundi de la semaine contenant une date donnée.

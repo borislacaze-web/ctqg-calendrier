@@ -68,6 +68,22 @@ export default function HomePage() {
     }
   }
 
+  const handleDuplicate = (event: CalendarEvent) => {
+    // Préparer une copie sans id ni dates audit
+    const copy = {
+      ...event,
+      id: undefined,
+      title: `Copie — ${event.title}`,
+      created_at: undefined,
+      updated_at: undefined,
+      category: undefined,
+      subcategory: undefined,
+      event_documents: undefined,
+    } as unknown as CalendarEvent
+    setEditingEvent(copy)
+    setShowForm(true)
+  }
+
   const isLoading = loadingSeasons || loadingCats || loadingEvents
 
   return (
@@ -219,6 +235,7 @@ export default function HomePage() {
         onClose={() => setSelectedEvent(null)}
         onEdit={(ev) => { setEditingEvent(ev); setShowForm(true) }}
         onDelete={handleDelete}
+        onDuplicate={handleDuplicate}
       />
 
       {/* Formulaire création/édition */}
