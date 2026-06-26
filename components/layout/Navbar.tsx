@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  Table2, Settings,
+  CalendarDays, Table2,
   LogOut, LogIn, Menu, X, Shield
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
