@@ -177,14 +177,16 @@ export default function PlanningView({
                   position: 'sticky', left: 0, top: 0, zIndex: 50,
                   background: '#1e3a8a', color: 'white',
                   border: '1px solid #2d4fb5', height: H_THEAD,
-                  textAlign: 'center', fontWeight: 700, fontSize: '11px', verticalAlign: 'middle',
+                  textAlign: 'center', fontWeight: 700, fontSize: '11px',
+                  verticalAlign: 'middle', lineHeight: '1',
                 }}>Semaine</th>
                 {/* W-End — sticky dans l'en-tête */}
                 <th rowSpan={2} style={{
                   position: 'sticky', left: W_SEM, top: 0, zIndex: 50,
                   background: '#1e3a8a', color: 'white',
                   border: '1px solid #2d4fb5', borderLeft: '2px solid #60a5fa', height: H_THEAD,
-                  textAlign: 'center', fontWeight: 700, fontSize: '11px', verticalAlign: 'middle',
+                  textAlign: 'center', fontWeight: 700, fontSize: '11px',
+                  verticalAlign: 'middle', lineHeight: '1',
                 }}>W-End</th>
                 {catGroups.map(g => (
                   <th key={g.catId} colSpan={g.span} style={{
@@ -263,19 +265,15 @@ export default function PlanningView({
                       : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />
                     }
                   </td>
-                  {/* Nom complet + info aucun événement */}
+                  {/* Cellule grise étendue — fond uniquement, sans texte */}
                   <td colSpan={columns.length} style={{
-                    background: '#374151', color: 'white',
+                    background: '#374151',
                     border: '1px solid #4b5563',
-                    padding: '4px 12px', fontWeight: 700, fontSize: '12px',
-                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                    padding: '4px 12px',
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>{monthLabelCap}</span>
-                      {!hasEvents && !filterKeyword && (
-                        <span style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 400, textTransform: 'none' }}>Aucun événement</span>
-                      )}
-                    </div>
+                    {!hasEvents && !filterKeyword && (
+                      <span style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 400 }}>Aucun événement</span>
+                    )}
                   </td>
                 </tr>
 
