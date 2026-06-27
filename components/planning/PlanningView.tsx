@@ -245,7 +245,7 @@ export default function PlanningView({
                       letterSpacing: '0.05em',
                       textTransform: 'uppercase',
                       position: 'sticky',
-                      top: '54px', /* hauteur des 2 lignes d'en-tête */
+                      top: '70px', /* hauteur des 2 lignes d'en-tête */
                       zIndex: 20,
                       borderBottom: '1px solid #4b5563',
                     }}
