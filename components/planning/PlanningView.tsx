@@ -235,7 +235,8 @@ export default function PlanningView({
                     textTransform: 'uppercase',
                     position: 'sticky',
                     top: `${THEAD_HEIGHT}px`,
-                    zIndex: 20,
+                    left: 0,
+                    zIndex: 25,
                     borderBottom: '2px solid #4b5563',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                   }}>
