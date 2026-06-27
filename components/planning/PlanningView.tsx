@@ -329,7 +329,7 @@ export default function PlanningView({
                     <td style={wendMonthTd}>
                       {isCol ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} /> : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />}
                     </td>
-                    <td colSpan={columns.length} style={{ background: '#374151', border: '1px solid #4b5563', padding: '4px 12px' }}>
+                    <td colSpan={columns.length} style={{ position: 'relative', zIndex: 0, background: '#374151', border: '1px solid #4b5563', padding: '4px 12px' }}>
                       {!hasEvts && !filterKeyword && <span style={{ fontSize: '10px', color: '#9ca3af' }}>Aucun événement</span>}
                     </td>
                   </tr>
@@ -360,6 +360,7 @@ export default function PlanningView({
                             key={col.key}
                             data-saturday={satStr}
                             style={{
+                              position: 'relative', zIndex: 0, // force sous les td sticky (zIndex:20)
                               border: '1px solid #dde3ec',
                               borderLeft: `2px solid ${col.catColor}44`,
                               padding: '3px',
