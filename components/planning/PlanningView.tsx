@@ -232,10 +232,11 @@ export default function PlanningView({
   const tableW = W_SEM + W_WEND + columns.length * W_COL
 
   // ── Styles cellules sticky left (corps du tableau) ──
-  const semTd = (bg: string, color: string): React.CSSProperties => ({ position: 'sticky', left: 0, zIndex: 10, background: bg, color, border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8', textAlign: 'center', verticalAlign: 'middle', padding: '4px 2px' })
-  const wendTd = (bg: string): React.CSSProperties => ({ position: 'sticky', left: W_SEM, zIndex: 10, background: bg, border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8', borderLeft: '2px solid #bfdbfe', textAlign: 'center', verticalAlign: 'middle', color: '#64748b', fontSize: '10px', lineHeight: '1.8', padding: '4px 5px' })
-  const semMonthTd: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 10, background: '#374151', color: 'white', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '10px', lineHeight: '1.4', padding: '4px 2px' }
-  const wendMonthTd: React.CSSProperties = { position: 'sticky', left: W_SEM, zIndex: 10, background: '#374151', color: '#9ca3af', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle' }
+  // zIndex: 20 > 1 (td normaux) pour passer par-dessus au scroll horizontal
+  const semTd = (bg: string, color: string): React.CSSProperties => ({ position: 'sticky', left: 0, zIndex: 20, background: bg, color, border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8', textAlign: 'center', verticalAlign: 'middle', padding: '4px 2px' })
+  const wendTd = (bg: string): React.CSSProperties => ({ position: 'sticky', left: W_SEM, zIndex: 20, background: bg, border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8', borderLeft: '2px solid #bfdbfe', textAlign: 'center', verticalAlign: 'middle', color: '#64748b', fontSize: '10px', lineHeight: '1.8', padding: '4px 5px' })
+  const semMonthTd: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 20, background: '#374151', color: 'white', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '10px', lineHeight: '1.4', padding: '4px 2px' }
+  const wendMonthTd: React.CSSProperties = { position: 'sticky', left: W_SEM, zIndex: 20, background: '#374151', color: '#9ca3af', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle' }
 
   // ── Styles cellules header ──
   const thBase: React.CSSProperties = { position: 'sticky', zIndex: 20, textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '11px', boxSizing: 'border-box', padding: 0 }
