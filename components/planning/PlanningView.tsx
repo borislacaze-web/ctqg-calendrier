@@ -118,8 +118,8 @@ export default function PlanningView({ events, categories, subcategories, season
         {/* En-têtes — sticky top ET colonnes sticky left dans le même contexte */}
         <thead>
           <tr style={{ height: H1 }}>
-            <th rowSpan={2} style={{ ...semTh, top: 0, height: H1+H2 }}>Semaine</th>
-            <th rowSpan={2} style={{ ...wendTh, top: 0, height: H1+H2 }}>W-End</th>
+            <th style={{ ...semTh, top: 0, height: H1, borderBottom: 'none' }}></th>
+            <th style={{ ...wendTh, top: 0, height: H1, borderBottom: 'none' }}></th>
             {catGroups.map(g => (
               <th key={g.catId} colSpan={g.span} style={{
                 position: 'sticky', top: 0, zIndex: 30,
@@ -131,6 +131,8 @@ export default function PlanningView({ events, categories, subcategories, season
             ))}
           </tr>
           <tr style={{ height: H2 }}>
+            <th style={{ ...semTh, top: H1, height: H2, borderTop: 'none' }}>Semaine</th>
+            <th style={{ ...wendTh, top: H1, height: H2, borderTop: 'none' }}>W-End</th>
             {columns.map(col => (
               <th key={col.key} style={{
                 position: 'sticky', top: H1, zIndex: 30,
