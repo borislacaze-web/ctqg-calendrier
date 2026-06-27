@@ -116,20 +116,34 @@ export default function PlanningView({ events, categories, subcategories, season
         </colgroup>
 
         {/* En-têtes — sticky top ET colonnes sticky left dans le même contexte */}
+        {/*
+          SOLUTION au bug rowSpan + sticky :
+          Les cellules rowSpan={2} avec position:sticky perdent leur hauteur au scroll car
+          le navigateur recalcule dynamiquement la hauteur des lignes du thead.
+          Fix : deux cellules indépendantes par colonne (ligne 1 + ligne 2), sans rowSpan,
+          avec borderBottom supprimé sur la ligne 1 et borderTop supprimé sur la ligne 2
+          pour simuler visuellement la fusion. Chaque cellule a sa propre valeur "top" stable.
+        */}
         <thead>
           <tr style={{ height: H1 }}>
-            <th rowSpan={2} style={{
-              ...semTh, top: 0, zIndex: 50,
-              height: H1+H2,
+            {/* Semaine — ligne 1 (sans rowSpan, borderBottom masqué pour effet fusionné) */}
+            <th style={{
+              ...semTh,
+              position: 'sticky', top: 0, left: 0, zIndex: 50,
+              height: H1,
               padding: 0,
               boxSizing: 'border-box',
-            }}>Semaine</th>
-            <th rowSpan={2} style={{
-              ...wendTh, top: 0, zIndex: 50,
-              height: H1+H2,
+              borderBottom: 'none',
+            }}></th>
+            {/* W-End — ligne 1 */}
+            <th style={{
+              ...wendTh,
+              position: 'sticky', top: 0, left: W_SEM, zIndex: 50,
+              height: H1,
               padding: 0,
               boxSizing: 'border-box',
-            }}>W-End</th>
+              borderBottom: 'none',
+            }}></th>
             {catGroups.map(g => (
               <th key={g.catId} colSpan={g.span} style={{
                 position: 'sticky', top: 0, zIndex: 30,
@@ -143,6 +157,24 @@ export default function PlanningView({ events, categories, subcategories, season
             ))}
           </tr>
           <tr style={{ height: H2 }}>
+            {/* Semaine — ligne 2 (borderTop masqué pour effet fusionné) */}
+            <th style={{
+              ...semTh,
+              position: 'sticky', top: H1, left: 0, zIndex: 50,
+              height: H2,
+              padding: 0,
+              boxSizing: 'border-box',
+              borderTop: 'none',
+            }}>Semaine</th>
+            {/* W-End — ligne 2 */}
+            <th style={{
+              ...wendTh,
+              position: 'sticky', top: H1, left: W_SEM, zIndex: 50,
+              height: H2,
+              padding: 0,
+              boxSizing: 'border-box',
+              borderTop: 'none',
+            }}>W-End</th>
             {columns.map(col => (
               <th key={col.key} style={{
                 position: 'sticky', top: H1, zIndex: 30,
