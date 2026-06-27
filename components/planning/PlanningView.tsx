@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { format, isBefore, startOfMonth, parseISO, addDays, differenceInDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ChevronUp, ChevronDown, Copy } from 'lucide-react'
+import { ChevronUp, ChevronDown } from 'lucide-react'
 import type { CalendarEvent, Category, Subcategory, Season } from '@/types'
 import {
   getSeasonWeeks, assignEventsToWeeks, isSchoolHoliday,
@@ -258,13 +258,6 @@ export default function PlanningView({
         </div>
       )}
 
-      {/* Hint Ctrl+drag (admin uniquement) */}
-      {isAdmin && onDuplicateToWeek && (
-        <div style={{ padding: '2px 8px 4px', fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Copy size={10} /> <span><kbd style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 3, padding: '0 3px', fontSize: 9 }}>Ctrl</kbd> + glisser un événement pour le dupliquer dans une autre semaine</span>
-        </div>
-      )}
-
       {/* ══ HEADER — jamais scrollé verticalement ══ */}
       <div ref={headerRef} style={{ overflowX: 'hidden', overflowY: 'hidden', flexShrink: 0 }}>
         <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
@@ -417,7 +410,7 @@ function EventBadge({
     <button
       onClick={onClick}
       onMouseDown={onMouseDown}
-      title={`${title}${event.location ? ` · ${event.location}` : ''}${isAdmin ? '\n[Ctrl+glisser pour dupliquer]' : ''}`}
+      title={`${title}${event.location ? ` · ${event.location}` : ''}`}
       style={{
         display: 'block', width: '100%', textAlign: 'left',
         background: color+'22', border: `1px solid ${color}55`,
