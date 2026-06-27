@@ -21,7 +21,7 @@ const W_SEM  = 82
 const W_WEND = 96
 const W_COL  = 130
 const H_ROW1 = 28  // hauteur ligne catégories
-const H_ROW2 = 34  // hauteur ligne sous-catégories (augmentée)
+const H_ROW2 = 42  // hauteur ligne sous-catégories
 const H_THEAD = H_ROW1 + H_ROW2
 
 interface Props {
@@ -176,7 +176,7 @@ export default function PlanningView({
       {/* ══ CORPS SCROLLABLE ══ */}
       <div
         id="body-scroll"
-        style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: `calc(100vh - ${H_THEAD + 112}px)`, width: '100%' }}
+        style={{ overflowX: 'scroll', overflowY: 'auto', maxHeight: `calc(100vh - ${H_THEAD + 112}px)`, width: '100%' }}
         onScroll={e => {
           const hs = document.getElementById('header-scroll')
           if (hs) hs.scrollLeft = (e.target as HTMLDivElement).scrollLeft
@@ -208,42 +208,37 @@ export default function PlanningView({
                     if (next.has(monthKey)) next.delete(monthKey); else next.add(monthKey)
                     return next
                   })} style={{ cursor: 'pointer' }}>
-                  {/* Colonne Semaine sticky — NOM DU MOIS */}
+                  {/* Colonne Semaine sticky — nom du mois abrégé */}
                     <td style={{
                       ...stickyLeft0,
                       background: '#374151', color: 'white',
-                      border: '1px solid #4b5563', borderRight: '1px solid #4b5563',
+                      border: '1px solid #4b5563',
                       padding: '5px 3px', textAlign: 'center', verticalAlign: 'middle',
-                      fontWeight: 700, fontSize: '10px', lineHeight: '1.2',
+                      fontWeight: 700, fontSize: '10px', lineHeight: '1.3',
                     }}>
-                      {format(monthWeeks[0].monday, 'MMM yyyy', { locale: fr }).toUpperCase()}
+                      {format(monthWeeks[0].monday, 'MMM', { locale: fr }).toUpperCase()}{'\n'}
+                      {format(monthWeeks[0].monday, 'yyyy')}
                     </td>
-                    {/* Colonne W-End sticky */}
+                    {/* Colonne W-End sticky — flèche */}
                     <td style={{
                       ...stickyLeft1,
-                      background: '#374151',
-                      border: '1px solid #374151', borderLeft: '2px solid #374151',
-                    }} />
-                    {/* Flèche + nom complet du mois dans la 1ère colonne de données */}
-                    <td colSpan={columns.length} style={{
-                      background: '#374151', color: 'white',
+                      background: '#374151', color: '#9ca3af',
                       border: '1px solid #4b5563',
-                      padding: '5px 12px',
-                      fontWeight: 700, fontSize: '12px',
-                      letterSpacing: '0.06em', textTransform: 'uppercase',
+                      textAlign: 'center', verticalAlign: 'middle',
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {isCollapsed
-                            ? <ChevronDown style={{ width: 14, height: 14, color: '#9ca3af' }} />
-                            : <ChevronUp style={{ width: 14, height: 14, color: '#9ca3af' }} />
-                          }
-                          <span>{labelCap}</span>
-                        </div>
-                        {!hasEvents && !filterKeyword && (
-                          <span style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 400 }}>Aucun événement</span>
-                        )}
-                      </div>
+                      {isCollapsed
+                        ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} />
+                        : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />
+                      }
+                    </td>
+                    {/* Cellule grise étendue — sans nom de mois */}
+                    <td colSpan={columns.length} style={{
+                      background: '#374151',
+                      border: '1px solid #4b5563',
+                    }}>
+                      {!hasEvents && !filterKeyword && (
+                        <span style={{ fontSize: '10px', color: '#9ca3af', paddingLeft: '8px' }}>Aucun événement</span>
+                      )}
                     </td>
                   </tr>
 
