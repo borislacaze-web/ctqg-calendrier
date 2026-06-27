@@ -36,6 +36,8 @@ interface Props {
 
 export default function EventForm({ event, season, categories, subcategories, onSaved, onClose }: Props) {
   const [saving, setSaving] = useState(false)
+  const [showOutOfSeasonWarning, setShowOutOfSeasonWarning] = useState(false)
+  const [pendingData, setPendingData] = useState<FormData | null>(null)
   const [filteredSubs, setFilteredSubs] = useState<Subcategory[]>([])
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
@@ -77,7 +79,23 @@ export default function EventForm({ event, season, categories, subcategories, on
     }
   }, [watchedStartDate])
 
+  const isOutOfSeason = (data: FormData) => {
+    const start = new Date(data.start_date)
+    const end   = new Date(data.end_date)
+    const sStart = new Date(season.start_date)
+    const sEnd   = new Date(season.end_date)
+    return start < sStart || start > sEnd || end < sStart || end > sEnd
+  }
+
   const onSubmit = async (data: FormData) => {
+    // Vérification hors saison : on bloque et demande confirmation
+    if (isOutOfSeason(data) && !showOutOfSeasonWarning) {
+      setPendingData(data)
+      setShowOutOfSeasonWarning(true)
+      return
+    }
+    setShowOutOfSeasonWarning(false)
+    setPendingData(null)
     setSaving(true)
     try {
       const payload = {
