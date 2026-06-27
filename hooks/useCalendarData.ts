@@ -77,7 +77,8 @@ export function useEvents(seasonId?: string, filters?: {
   const refresh = useCallback(() => {
     if (!seasonId) return
 
-    setLoading(true)
+    // Ne pas appeler setLoading(true) ici : ça affiche le spinner et reset le scroll.
+    // Le loading initial (useState(true)) gère le premier chargement.
     let query = supabase
       .from('events')
       .select(`
