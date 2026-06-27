@@ -21,7 +21,7 @@ const W_SEM  = 82
 const W_WEND = 96
 const W_COL  = 130
 const H_ROW1 = 28  // hauteur ligne catégories
-const H_ROW2 = 26  // hauteur ligne sous-catégories
+const H_ROW2 = 34  // hauteur ligne sous-catégories (augmentée)
 const H_THEAD = H_ROW1 + H_ROW2
 
 interface Props {
@@ -208,25 +208,23 @@ export default function PlanningView({
                     if (next.has(monthKey)) next.delete(monthKey); else next.add(monthKey)
                     return next
                   })} style={{ cursor: 'pointer' }}>
-                    {/* Colonne Semaine sticky */}
+                  {/* Colonne Semaine sticky — NOM DU MOIS */}
                     <td style={{
                       ...stickyLeft0,
-                      background: '#1f2937', color: '#9ca3af',
-                      border: '1px solid #374151', borderRight: '1px solid #4b5563',
-                      padding: '5px 2px', textAlign: 'center',
+                      background: '#374151', color: 'white',
+                      border: '1px solid #4b5563', borderRight: '1px solid #4b5563',
+                      padding: '5px 3px', textAlign: 'center', verticalAlign: 'middle',
+                      fontWeight: 700, fontSize: '10px', lineHeight: '1.2',
                     }}>
-                      {isCollapsed
-                        ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} />
-                        : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />
-                      }
+                      {format(monthWeeks[0].monday, 'MMM yyyy', { locale: fr }).toUpperCase()}
                     </td>
                     {/* Colonne W-End sticky */}
                     <td style={{
                       ...stickyLeft1,
-                      background: '#1f2937',
+                      background: '#374151',
                       border: '1px solid #374151', borderLeft: '2px solid #374151',
                     }} />
-                    {/* Nom du mois dans la 1ère colonne de données */}
+                    {/* Flèche + nom complet du mois dans la 1ère colonne de données */}
                     <td colSpan={columns.length} style={{
                       background: '#374151', color: 'white',
                       border: '1px solid #4b5563',
@@ -235,7 +233,13 @@ export default function PlanningView({
                       letterSpacing: '0.06em', textTransform: 'uppercase',
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>{labelCap}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {isCollapsed
+                            ? <ChevronDown style={{ width: 14, height: 14, color: '#9ca3af' }} />
+                            : <ChevronUp style={{ width: 14, height: 14, color: '#9ca3af' }} />
+                          }
+                          <span>{labelCap}</span>
+                        </div>
                         {!hasEvents && !filterKeyword && (
                           <span style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 400 }}>Aucun événement</span>
                         )}
