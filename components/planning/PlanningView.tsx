@@ -1,6 +1,6 @@
 // components/planning/PlanningView.tsx
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { format, isBefore, startOfMonth, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ChevronUp, ChevronDown } from 'lucide-react'
@@ -56,6 +56,19 @@ export default function PlanningView({ events, categories, subcategories, season
 
   const [collapsed, setCollapsed] = useState<Set<string>>(defaultCollapsed)
 
+  // Ref pour synchroniser le scroll horizontal entre header et body
+  const headerRef = useRef<HTMLDivElement>(null)
+  const bodyRef   = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const body   = bodyRef.current
+    const header = headerRef.current
+    if (!body || !header) return
+    const onScroll = () => { header.scrollLeft = body.scrollLeft }
+    body.addEventListener('scroll', onScroll, { passive: true })
+    return () => body.removeEventListener('scroll', onScroll)
+  }, [])
+
   const columns = useMemo(() => {
     const cols: { catId: string; catName: string; catColor: string; subId: string|null; subName: string|null; key: string }[] = []
     const cats = filterCategoryId ? categories.filter(c => c.id === filterCategoryId) : categories
@@ -97,159 +110,140 @@ export default function PlanningView({ events, categories, subcategories, season
 
   const tableW = W_SEM + W_WEND + columns.length * W_COL
 
-  // Styles sticky réutilisés dans thead et tbody
-  const semTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 50, background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '11px' }
-  const wendTh: React.CSSProperties = { position: 'sticky', left: W_SEM, zIndex: 50, background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', borderLeft: '2px solid #60a5fa', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '11px' }
+  // ── Styles cellules sticky left (corps du tableau) ──
   const semTd = (bg: string, color: string): React.CSSProperties => ({ position: 'sticky', left: 0, zIndex: 10, background: bg, color, border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8', textAlign: 'center', verticalAlign: 'middle', padding: '4px 2px' })
   const wendTd = (bg: string): React.CSSProperties => ({ position: 'sticky', left: W_SEM, zIndex: 10, background: bg, border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8', borderLeft: '2px solid #bfdbfe', textAlign: 'center', verticalAlign: 'middle', color: '#64748b', fontSize: '10px', lineHeight: '1.8', padding: '4px 5px' })
   const semMonthTd: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 10, background: '#374151', color: 'white', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '10px', lineHeight: '1.4', padding: '4px 2px' }
   const wendMonthTd: React.CSSProperties = { position: 'sticky', left: W_SEM, zIndex: 10, background: '#374151', color: '#9ca3af', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle' }
 
+  // ── Styles cellules header (tableau séparé, jamais scrollé verticalement) ──
+  const thBase: React.CSSProperties = { position: 'sticky', zIndex: 20, textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '11px', boxSizing: 'border-box', padding: 0 }
+  const semThStyle  = (top: number, h: number): React.CSSProperties => ({ ...thBase, left: 0,     top, height: h, background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5' })
+  const wendThStyle = (top: number, h: number): React.CSSProperties => ({ ...thBase, left: W_SEM, top, height: h, background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', borderLeft: '2px solid #60a5fa' })
+
   return (
-    <div style={{ width: '100%', overflowX: 'scroll', overflowY: 'auto', maxHeight: 'calc(100vh - 120px)' }}>
-      {/* ══ UN SEUL tableau — thead sticky top, colonnes sticky left ══ */}
-      <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
-        <colgroup>
-          <col style={{ width: W_SEM }} />
-          <col style={{ width: W_WEND }} />
-          {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
-        </colgroup>
+    /*
+      SOLUTION DÉFINITIVE au bug rowSpan + sticky :
+      On sépare physiquement le header et le body en deux div scrollables distinctes.
+      - headerDiv : overflow hidden, scroll horizontal synchronisé via JS avec bodyDiv
+      - bodyDiv   : overflow auto (scroll vertical ET horizontal)
+      Le header ne scroll JAMAIS verticalement → hauteurs H1/H2 toujours stables.
+      Les colonnes Semaine/W-End restent sticky left dans les deux tableaux indépendamment.
+      Plus de rowSpan, plus de conflit de hauteur.
+    */
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 120px)' }}>
 
-        {/* En-têtes — sticky top ET colonnes sticky left dans le même contexte */}
-        {/*
-          SOLUTION au bug rowSpan + sticky :
-          Les cellules rowSpan={2} avec position:sticky perdent leur hauteur au scroll car
-          le navigateur recalcule dynamiquement la hauteur des lignes du thead.
-          Fix : deux cellules indépendantes par colonne (ligne 1 + ligne 2), sans rowSpan,
-          avec borderBottom supprimé sur la ligne 1 et borderTop supprimé sur la ligne 2
-          pour simuler visuellement la fusion. Chaque cellule a sa propre valeur "top" stable.
-        */}
-        <thead>
-          <tr style={{ height: H1 }}>
-            {/* Semaine — ligne 1 (sans rowSpan, borderBottom masqué pour effet fusionné) */}
-            <th style={{
-              ...semTh,
-              position: 'sticky', top: 0, left: 0, zIndex: 50,
-              height: H1,
-              padding: 0,
-              boxSizing: 'border-box',
-              borderBottom: 'none',
-            }}></th>
-            {/* W-End — ligne 1 */}
-            <th style={{
-              ...wendTh,
-              position: 'sticky', top: 0, left: W_SEM, zIndex: 50,
-              height: H1,
-              padding: 0,
-              boxSizing: 'border-box',
-              borderBottom: 'none',
-            }}></th>
-            {catGroups.map(g => (
-              <th key={g.catId} colSpan={g.span} style={{
-                position: 'sticky', top: 0, zIndex: 30,
-                background: blend(g.catColor, 0.15), color: g.catColor,
-                border: `1px solid ${g.catColor}88`, borderBottom: `2px solid ${g.catColor}`,
-                textAlign: 'center', verticalAlign: 'middle',
-                fontWeight: 700, fontSize: '11px',
-                height: H1, padding: '0 4px',
-                boxSizing: 'border-box', overflow: 'hidden',
-              }}>{g.catName}</th>
-            ))}
-          </tr>
-          <tr style={{ height: H2 }}>
-            {/* Semaine — ligne 2 (borderTop masqué pour effet fusionné) */}
-            <th style={{
-              ...semTh,
-              position: 'sticky', top: H1, left: 0, zIndex: 50,
-              height: H2,
-              padding: 0,
-              boxSizing: 'border-box',
-              borderTop: 'none',
-            }}>Semaine</th>
-            {/* W-End — ligne 2 */}
-            <th style={{
-              ...wendTh,
-              position: 'sticky', top: H1, left: W_SEM, zIndex: 50,
-              height: H2,
-              padding: 0,
-              boxSizing: 'border-box',
-              borderTop: 'none',
-            }}>W-End</th>
-            {columns.map(col => (
-              <th key={col.key} style={{
-                position: 'sticky', top: H1, zIndex: 30,
-                background: blend(col.catColor, 0.07), color: col.catColor,
-                border: `1px solid ${col.catColor}55`, borderTop: 'none',
-                textAlign: 'center', verticalAlign: 'middle',
-                fontWeight: 500, fontSize: '10px', lineHeight: '1.2',
-                whiteSpace: 'normal', padding: '3px',
-                height: H2, boxSizing: 'border-box',
-              }}>{col.subName ?? ''}</th>
-            ))}
-          </tr>
-        </thead>
+      {/* ══ HEADER — tableau fixe, jamais scrollé verticalement ══ */}
+      <div ref={headerRef} style={{ overflowX: 'hidden', overflowY: 'hidden', flexShrink: 0 }}>
+        <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
+          <colgroup>
+            <col style={{ width: W_SEM }} />
+            <col style={{ width: W_WEND }} />
+            {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
+          </colgroup>
+          <thead>
+            {/* Ligne 1 : noms des catégories (+ cellules Semaine/W-End vides) */}
+            <tr style={{ height: H1 }}>
+              <th style={{ ...semThStyle(0, H1), borderBottom: 'none' }}></th>
+              <th style={{ ...wendThStyle(0, H1), borderBottom: 'none' }}></th>
+              {catGroups.map(g => (
+                <th key={g.catId} colSpan={g.span} style={{
+                  ...thBase,
+                  top: 0, height: H1, padding: '0 4px',
+                  background: blend(g.catColor, 0.15), color: g.catColor,
+                  border: `1px solid ${g.catColor}88`, borderBottom: `2px solid ${g.catColor}`,
+                  overflow: 'hidden',
+                }}>{g.catName}</th>
+              ))}
+            </tr>
+            {/* Ligne 2 : labels Semaine/W-End + noms des sous-catégories */}
+            <tr style={{ height: H2 }}>
+              <th style={{ ...semThStyle(H1, H2), borderTop: 'none' }}>Semaine</th>
+              <th style={{ ...wendThStyle(H1, H2), borderTop: 'none' }}>W-End</th>
+              {columns.map(col => (
+                <th key={col.key} style={{
+                  ...thBase,
+                  top: H1, height: H2, padding: '3px',
+                  background: blend(col.catColor, 0.07), color: col.catColor,
+                  border: `1px solid ${col.catColor}55`, borderTop: 'none',
+                  fontWeight: 500, fontSize: '10px', lineHeight: '1.2', whiteSpace: 'normal',
+                }}>{col.subName ?? ''}</th>
+              ))}
+            </tr>
+          </thead>
+        </table>
+      </div>
 
-        <tbody>
-          {Array.from(weeksByMonth.entries()).map(([monthKey, monthWeeks]) => {
-            const isCol = collapsed.has(monthKey)
-            const p = monthKey.split('-')
-            const monthDate = new Date(parseInt(p[0]), parseInt(p[1])-1, 1)
-            const monthLabel = format(monthDate, 'MMMM yyyy', { locale: fr })
-            const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
-            const hasEvts = monthWeeks.some(w => columns.some(col => getColEvs(w.events, col).length > 0))
+      {/* ══ BODY — tableau scrollable verticalement ET horizontalement ══ */}
+      <div ref={bodyRef} style={{ overflowX: 'scroll', overflowY: 'auto', flex: 1 }}>
+        <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
+          <colgroup>
+            <col style={{ width: W_SEM }} />
+            <col style={{ width: W_WEND }} />
+            {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
+          </colgroup>
+          <tbody>
+            {Array.from(weeksByMonth.entries()).map(([monthKey, monthWeeks]) => {
+              const isCol = collapsed.has(monthKey)
+              const p = monthKey.split('-')
+              const monthDate = new Date(parseInt(p[0]), parseInt(p[1])-1, 1)
+              const monthLabel = format(monthDate, 'MMMM yyyy', { locale: fr })
+              const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
+              const hasEvts = monthWeeks.some(w => columns.some(col => getColEvs(w.events, col).length > 0))
 
-            if (filterMonth) {
-              const fm = parseInt(filterMonth)
-              if (!monthWeeks.some(w => w.saturday.getMonth()+1 === fm)) return null
-            }
+              if (filterMonth) {
+                const fm = parseInt(filterMonth)
+                if (!monthWeeks.some(w => w.saturday.getMonth()+1 === fm)) return null
+              }
 
-            return (
-              <>
-                <tr key={`m-${monthKey}`} onClick={() => setCollapsed(prev => { const n = new Set(prev); if (n.has(monthKey)) n.delete(monthKey); else n.add(monthKey); return n })} style={{ cursor: 'pointer' }}>
-                  <td style={semMonthTd}>
-                    <div>{format(monthDate, 'MMM', { locale: fr }).toUpperCase()}</div>
-                    <div style={{ fontSize: '9px', fontWeight: 400 }}>{format(monthDate, 'yyyy')}</div>
-                  </td>
-                  <td style={wendMonthTd}>
-                    {isCol ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} /> : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />}
-                  </td>
-                  <td colSpan={columns.length} style={{ background: '#374151', border: '1px solid #4b5563', padding: '4px 12px' }}>
-                    {!hasEvts && !filterKeyword && <span style={{ fontSize: '10px', color: '#9ca3af' }}>Aucun événement</span>}
-                  </td>
-                </tr>
+              return (
+                <>
+                  <tr key={`m-${monthKey}`} onClick={() => setCollapsed(prev => { const n = new Set(prev); if (n.has(monthKey)) n.delete(monthKey); else n.add(monthKey); return n })} style={{ cursor: 'pointer' }}>
+                    <td style={semMonthTd}>
+                      <div>{format(monthDate, 'MMM', { locale: fr }).toUpperCase()}</div>
+                      <div style={{ fontSize: '9px', fontWeight: 400 }}>{format(monthDate, 'yyyy')}</div>
+                    </td>
+                    <td style={wendMonthTd}>
+                      {isCol ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} /> : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />}
+                    </td>
+                    <td colSpan={columns.length} style={{ background: '#374151', border: '1px solid #4b5563', padding: '4px 12px' }}>
+                      {!hasEvts && !filterKeyword && <span style={{ fontSize: '10px', color: '#9ca3af' }}>Aucun événement</span>}
+                    </td>
+                  </tr>
 
-                {!isCol && monthWeeks.map(week => {
-                  const isHol = isSchoolHoliday(week.monday, season.name)
-                  const feries = getFeriesInWeek(week.monday, feriesMap)
-                  return (
-                    <tr key={`w-${week.week_number}`}>
-                      <td style={semTd(isHol ? '#fef08a' : '#eff6ff', isHol ? '#854d0e' : '#1e40af')}>
-                        <div style={{ fontWeight: 700, fontSize: '13px' }}>S{week.week_number}</div>
-                        {isHol && <div style={{ fontSize: '9px', color: '#854d0e' }}>Vacances</div>}
-                        {feries.map(f => (
-                          <div key={f.date} title={f.nom} style={{ marginTop: '3px', background: '#E0F5EC', color: '#1a6b45', fontSize: '8px', padding: '1px 3px', borderRadius: '2px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            🟢 {f.nom}
-                            <div style={{ fontWeight: 400 }}>{format(parseISO(f.date), 'dd/MM')}</div>
-                          </div>
-                        ))}
-                      </td>
-                      <td style={wendTd(isHol ? '#fefce8' : '#f8fafc')}>
-                        <div>Sam {format(week.saturday, 'dd/MM')}</div>
-                        <div>Dim {format(week.sunday, 'dd/MM')}</div>
-                      </td>
-                      {columns.map(col => (
-                        <td key={col.key} style={{ border: '1px solid #dde3ec', borderLeft: `2px solid ${col.catColor}44`, padding: '3px', verticalAlign: 'top', background: isHol ? '#fef9c3' : 'white' }}>
-                          {getColEvs(week.events, col).map(ev => <EventBadge key={ev.id} event={ev} onClick={() => onEventClick(ev)} />)}
+                  {!isCol && monthWeeks.map(week => {
+                    const isHol = isSchoolHoliday(week.monday, season.name)
+                    const feries = getFeriesInWeek(week.monday, feriesMap)
+                    return (
+                      <tr key={`w-${week.week_number}`}>
+                        <td style={semTd(isHol ? '#fef08a' : '#eff6ff', isHol ? '#854d0e' : '#1e40af')}>
+                          <div style={{ fontWeight: 700, fontSize: '13px' }}>S{week.week_number}</div>
+                          {isHol && <div style={{ fontSize: '9px', color: '#854d0e' }}>Vacances</div>}
+                          {feries.map(f => (
+                            <div key={f.date} title={f.nom} style={{ marginTop: '3px', background: '#E0F5EC', color: '#1a6b45', fontSize: '8px', padding: '1px 3px', borderRadius: '2px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              🟢 {f.nom}
+                              <div style={{ fontWeight: 400 }}>{format(parseISO(f.date), 'dd/MM')}</div>
+                            </div>
+                          ))}
                         </td>
-                      ))}
-                    </tr>
-                  )
-                })}
-              </>
-            )
-          })}
-        </tbody>
-      </table>
+                        <td style={wendTd(isHol ? '#fefce8' : '#f8fafc')}>
+                          <div>Sam {format(week.saturday, 'dd/MM')}</div>
+                          <div>Dim {format(week.sunday, 'dd/MM')}</div>
+                        </td>
+                        {columns.map(col => (
+                          <td key={col.key} style={{ border: '1px solid #dde3ec', borderLeft: `2px solid ${col.catColor}44`, padding: '3px', verticalAlign: 'top', background: isHol ? '#fef9c3' : 'white' }}>
+                            {getColEvs(week.events, col).map(ev => <EventBadge key={ev.id} event={ev} onClick={() => onEventClick(ev)} />)}
+                          </td>
+                        ))}
+                      </tr>
+                    )
+                  })}
+                </>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
