@@ -106,15 +106,16 @@ export function getFeriesInWeek(monday: Date, feriesMap: Record<string, string>)
 }
 
 /**
- * Retourne true si la semaine (lundi→dimanche) chevauche des vacances scolaires Zone C.
+ * Retourne true si le samedi de la semaine est en vacances scolaires Zone C.
+ * On utilise le samedi comme référence car c'est le premier jour du W-End affiché.
  */
 export function isSchoolHoliday(monday: Date, seasonName: string): boolean {
   const periods = VACANCES_ZONE_C[seasonName] ?? []
-  const sunday = addDays(monday, 6)
+  const saturday = addDays(monday, 5)
   return periods.some(p => {
     const pStart = parseISO(p.start)
     const pEnd   = parseISO(p.end)
-    return monday <= pEnd && sunday >= pStart
+    return saturday >= pStart && saturday <= pEnd
   })
 }
 

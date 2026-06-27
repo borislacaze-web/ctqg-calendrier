@@ -118,21 +118,31 @@ export default function PlanningView({ events, categories, subcategories, season
         {/* En-têtes — sticky top ET colonnes sticky left dans le même contexte */}
         <thead>
           <tr style={{ height: H1 }}>
-            <th style={{ ...semTh, top: 0, height: H1, borderBottom: 'none' }}></th>
-            <th style={{ ...wendTh, top: 0, height: H1, borderBottom: 'none' }}></th>
+            <th rowSpan={2} style={{
+              ...semTh, top: 0, zIndex: 50,
+              height: H1+H2,
+              padding: 0,
+              boxSizing: 'border-box',
+            }}>Semaine</th>
+            <th rowSpan={2} style={{
+              ...wendTh, top: 0, zIndex: 50,
+              height: H1+H2,
+              padding: 0,
+              boxSizing: 'border-box',
+            }}>W-End</th>
             {catGroups.map(g => (
               <th key={g.catId} colSpan={g.span} style={{
                 position: 'sticky', top: 0, zIndex: 30,
                 background: blend(g.catColor, 0.15), color: g.catColor,
                 border: `1px solid ${g.catColor}88`, borderBottom: `2px solid ${g.catColor}`,
                 textAlign: 'center', verticalAlign: 'middle',
-                fontWeight: 700, fontSize: '11px', height: H1,
+                fontWeight: 700, fontSize: '11px',
+                height: H1, padding: '0 4px',
+                boxSizing: 'border-box', overflow: 'hidden',
               }}>{g.catName}</th>
             ))}
           </tr>
           <tr style={{ height: H2 }}>
-            <th style={{ ...semTh, top: H1, height: H2, borderTop: 'none' }}>Semaine</th>
-            <th style={{ ...wendTh, top: H1, height: H2, borderTop: 'none' }}>W-End</th>
             {columns.map(col => (
               <th key={col.key} style={{
                 position: 'sticky', top: H1, zIndex: 30,
@@ -140,7 +150,8 @@ export default function PlanningView({ events, categories, subcategories, season
                 border: `1px solid ${col.catColor}55`, borderTop: 'none',
                 textAlign: 'center', verticalAlign: 'middle',
                 fontWeight: 500, fontSize: '10px', lineHeight: '1.2',
-                whiteSpace: 'normal', padding: '3px', height: H2,
+                whiteSpace: 'normal', padding: '3px',
+                height: H2, boxSizing: 'border-box',
               }}>{col.subName ?? ''}</th>
             ))}
           </tr>
