@@ -158,11 +158,22 @@ export default function PlanningView({
       if (satStr === format(origSat, 'yyyy-MM-dd') && origSatDay === 6) return
       // si l'event est un dimanche, son samedi "de semaine" est satStr quand même — on laisse passer
 
+      // Sauvegarder la position de scroll avant le refresh
+      const savedScrollTop  = bodyRef.current?.scrollTop  ?? 0
+      const savedScrollLeft = bodyRef.current?.scrollLeft ?? 0
+
       setDuplicating(true)
       try {
         await onDuplicateToWeek(ds.event, targetSaturday)
       } finally {
         setDuplicating(false)
+        // Restaurer la position après le re-render
+        requestAnimationFrame(() => {
+          if (bodyRef.current) {
+            bodyRef.current.scrollTop  = savedScrollTop
+            bodyRef.current.scrollLeft = savedScrollLeft
+          }
+        })
       }
     }
 
