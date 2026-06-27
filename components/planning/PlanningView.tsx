@@ -110,19 +110,25 @@ export default function PlanningView({
   const stickyLeft1: React.CSSProperties = { position: 'sticky', left: W_SEM, zIndex: 10 }
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
-      {/* ══ EN-TÊTES FIXES (position absolute au-dessus du scroll) ══ */}
+    <div
+      id="body-scroll"
+      style={{ position: 'relative', width: '100%', overflowX: 'scroll', overflowY: 'auto', maxHeight: `calc(100vh - ${H_THEAD + 112}px)` }}
+      onScroll={e => {
+        const hs = document.getElementById('header-scroll')
+        if (hs) hs.scrollLeft = (e.target as HTMLDivElement).scrollLeft
+      }}
+    >
+      {/* ══ EN-TÊTES FIXES ══ */}
       <div style={{
         position: 'sticky',
         top: 0,
         zIndex: 40,
         height: H_THEAD,
-        width: '100%',
+        width: tableW,
         overflow: 'hidden',
         boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
       }}>
-        {/* Ce div scrolle horizontalement en sync avec le tableau */}
-        <div id="header-scroll" style={{ overflowX: 'hidden', width: '100%' }}>
+        <div id="header-scroll" style={{ overflowX: 'hidden', width: tableW }}>
           <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               <col style={{ width: W_SEM }} />
@@ -173,16 +179,8 @@ export default function PlanningView({
         </div>
       </div>
 
-      {/* ══ CORPS SCROLLABLE ══ */}
-      <div
-        id="body-scroll"
-        style={{ overflowX: 'scroll', overflowY: 'auto', maxHeight: `calc(100vh - ${H_THEAD + 112}px)`, width: '100%' }}
-        onScroll={e => {
-          const hs = document.getElementById('header-scroll')
-          if (hs) hs.scrollLeft = (e.target as HTMLDivElement).scrollLeft
-        }}
-      >
-        <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
+      {/* ══ CORPS ══ */}
+      <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
           <colgroup>
             <col style={{ width: W_SEM }} />
             <col style={{ width: W_WEND }} />
@@ -307,7 +305,6 @@ export default function PlanningView({
             })}
           </tbody>
         </table>
-      </div>
     </div>
   )
 }
