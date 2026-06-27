@@ -129,7 +129,7 @@ export default function PlanningView({
   const totalCols = columns.length + 2 // +2 pour Semaine + W-End
 
   return (
-    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 130px)' }}>
+    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 108px)' }}>
       <table style={{
         borderCollapse: 'separate',
         borderSpacing: 0,
@@ -245,7 +245,7 @@ export default function PlanningView({
                       letterSpacing: '0.05em',
                       textTransform: 'uppercase',
                       position: 'sticky',
-                      top: '54px',
+                      top: '54px', /* hauteur des 2 lignes d'en-tête */
                       zIndex: 20,
                       borderBottom: '1px solid #4b5563',
                     }}
