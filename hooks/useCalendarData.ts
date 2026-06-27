@@ -105,7 +105,13 @@ export function useEvents(seasonId?: string, filters?: {
 
   useEffect(() => { refresh() }, [refresh])
 
-  return { events, loading, refresh }
+  // Injecte un event directement dans le state sans déclencher setLoading
+  // (utilisé par la duplication Ctrl+drag pour éviter le scroll reset)
+  const appendEvent = useCallback((event: CalendarEvent) => {
+    setEvents(prev => [...prev, event].sort((a, b) => a.start_date.localeCompare(b.start_date)))
+  }, [])
+
+  return { events, loading, refresh, appendEvent }
 }
 
 export function useCurrentUser() {

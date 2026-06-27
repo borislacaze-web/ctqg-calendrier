@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { format, isBefore, startOfMonth, parseISO, addDays, differenceInDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ChevronUp, ChevronDown } from 'lucide-react'
+import { ChevronUp, ChevronDown, Copy } from 'lucide-react'
 import type { CalendarEvent, Category, Subcategory, Season } from '@/types'
 import {
   getSeasonWeeks, assignEventsToWeeks, isSchoolHoliday,
@@ -158,22 +158,11 @@ export default function PlanningView({
       if (satStr === format(origSat, 'yyyy-MM-dd') && origSatDay === 6) return
       // si l'event est un dimanche, son samedi "de semaine" est satStr quand même — on laisse passer
 
-      // Sauvegarder la position de scroll avant le refresh
-      const savedScrollTop  = bodyRef.current?.scrollTop  ?? 0
-      const savedScrollLeft = bodyRef.current?.scrollLeft ?? 0
-
       setDuplicating(true)
       try {
         await onDuplicateToWeek(ds.event, targetSaturday)
       } finally {
         setDuplicating(false)
-        // Restaurer la position après le re-render
-        requestAnimationFrame(() => {
-          if (bodyRef.current) {
-            bodyRef.current.scrollTop  = savedScrollTop
-            bodyRef.current.scrollLeft = savedScrollLeft
-          }
-        })
       }
     }
 
@@ -269,6 +258,13 @@ export default function PlanningView({
         </div>
       )}
 
+      {/* Hint Ctrl+drag (admin uniquement) */}
+      {isAdmin && onDuplicateToWeek && (
+        <div style={{ padding: '2px 8px 4px', fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Copy size={10} /> <span><kbd style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 3, padding: '0 3px', fontSize: 9 }}>Ctrl</kbd> + glisser un événement pour le dupliquer dans une autre semaine</span>
+        </div>
+      )}
+
       {/* ══ HEADER — jamais scrollé verticalement ══ */}
       <div ref={headerRef} style={{ overflowX: 'hidden', overflowY: 'hidden', flexShrink: 0 }}>
         <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
@@ -279,10 +275,8 @@ export default function PlanningView({
           </colgroup>
           <thead>
             <tr style={{ height: H1 }}>
-              {/* rowSpan={2} ici est SAFE : ce tableau n'a pas de scroll vertical,
-                  donc le bug de hauteur au scroll ne peut pas se produire */}
-              <th rowSpan={2} style={{ ...semThStyle(0, H1 + H2), verticalAlign: 'middle' }}>Semaine</th>
-              <th rowSpan={2} style={{ ...wendThStyle(0, H1 + H2), verticalAlign: 'middle' }}>W-End</th>
+              <th style={{ ...semThStyle(0, H1), borderBottom: 'none' }}></th>
+              <th style={{ ...wendThStyle(0, H1), borderBottom: 'none' }}></th>
               {catGroups.map(g => (
                 <th key={g.catId} colSpan={g.span} style={{
                   ...thBase, top: 0, height: H1, padding: '0 4px',
@@ -293,6 +287,8 @@ export default function PlanningView({
               ))}
             </tr>
             <tr style={{ height: H2 }}>
+              <th style={{ ...semThStyle(H1, H2), borderTop: 'none' }}>Semaine</th>
+              <th style={{ ...wendThStyle(H1, H2), borderTop: 'none' }}>W-End</th>
               {columns.map(col => (
                 <th key={col.key} style={{
                   ...thBase, top: H1, height: H2, padding: '3px',
@@ -421,7 +417,7 @@ function EventBadge({
     <button
       onClick={onClick}
       onMouseDown={onMouseDown}
-      title={`${title}${event.location ? ` · ${event.location}` : ''}`}
+      title={`${title}${event.location ? ` · ${event.location}` : ''}${isAdmin ? '\n[Ctrl+glisser pour dupliquer]' : ''}`}
       style={{
         display: 'block', width: '100%', textAlign: 'left',
         background: color+'22', border: `1px solid ${color}55`,
