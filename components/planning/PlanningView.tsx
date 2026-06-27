@@ -1,9 +1,9 @@
 // components/planning/PlanningView.tsx
 'use client'
-import { useMemo, useState, useRef, useEffect } from 'react'
-import { format, isBefore, startOfMonth, parseISO } from 'date-fns'
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { format, isBefore, startOfMonth, parseISO, addDays, differenceInDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ChevronUp, ChevronDown } from 'lucide-react'
+import { ChevronUp, ChevronDown, Copy } from 'lucide-react'
 import type { CalendarEvent, Category, Subcategory, Season } from '@/types'
 import {
   getSeasonWeeks, assignEventsToWeeks, isSchoolHoliday,
@@ -31,12 +31,25 @@ interface Props {
   subcategories: Subcategory[]
   season: Season
   onEventClick: (event: CalendarEvent) => void
+  onDuplicateToWeek?: (event: CalendarEvent, targetSaturday: Date) => Promise<void>
   filterCategoryId?: string
   filterMonth?: string
   filterKeyword?: string
+  isAdmin?: boolean
 }
 
-export default function PlanningView({ events, categories, subcategories, season, onEventClick, filterCategoryId, filterMonth, filterKeyword }: Props) {
+// Données portées pendant le Ctrl+drag
+interface DragState {
+  event: CalendarEvent
+  ghost: HTMLDivElement
+}
+
+export default function PlanningView({
+  events, categories, subcategories, season,
+  onEventClick, onDuplicateToWeek,
+  filterCategoryId, filterMonth, filterKeyword,
+  isAdmin,
+}: Props) {
   const startYear = parseInt(season.name.split('/')[0])
   const feriesMap = useMemo(() => getJoursFeriesSaison(startYear), [startYear])
   const weeks = useMemo(() => assignEventsToWeeks(getSeasonWeeks(season.start_date, season.end_date), events), [season, events])
@@ -67,6 +80,113 @@ export default function PlanningView({ events, categories, subcategories, season
     const onScroll = () => { header.scrollLeft = body.scrollLeft }
     body.addEventListener('scroll', onScroll, { passive: true })
     return () => body.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // ── État drag-to-duplicate ──
+  const dragRef = useRef<DragState | null>(null)
+  // cellule survolée pendant le drag (data-saturday="YYYY-MM-DD")
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  // feedback visuel "copie en cours"
+  const [duplicating, setDuplicating] = useState(false)
+
+  // Crée le ghost DOM (pastille flottante qui suit la souris)
+  const createGhost = useCallback((event: CalendarEvent, x: number, y: number) => {
+    const ghost = document.createElement('div')
+    ghost.style.cssText = `
+      position: fixed; z-index: 9999; pointer-events: none;
+      background: #1e3a8a; color: white;
+      padding: 4px 10px; border-radius: 6px;
+      font-size: 11px; font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      display: flex; align-items: center; gap: 6px;
+      white-space: nowrap; opacity: 0.92;
+      left: ${x + 14}px; top: ${y - 10}px;
+    `
+    ghost.innerHTML = `<span style="font-size:13px">⎘</span> ${event.title}`
+    document.body.appendChild(ghost)
+    return ghost
+  }, [])
+
+  // mousedown sur un EventBadge avec Ctrl enfoncé → démarre le drag
+  const handleBadgeMouseDown = useCallback((e: React.MouseEvent, event: CalendarEvent) => {
+    if (!e.ctrlKey || !isAdmin || !onDuplicateToWeek) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const ghost = createGhost(event, e.clientX, e.clientY)
+    dragRef.current = { event, ghost }
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'copy'
+  }, [isAdmin, onDuplicateToWeek, createGhost])
+
+  // Mouvements souris globaux pendant le drag
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const ds = dragRef.current
+      if (!ds) return
+      ds.ghost.style.left = `${e.clientX + 14}px`
+      ds.ghost.style.top  = `${e.clientY - 10}px`
+
+      // Détecte la cellule tbody sous le curseur (data-saturday)
+      const el = document.elementFromPoint(e.clientX, e.clientY)
+      const cell = el?.closest('[data-saturday]') as HTMLElement | null
+      setDropTarget(cell?.dataset.saturday ?? null)
+    }
+
+    const onUp = async (e: MouseEvent) => {
+      const ds = dragRef.current
+      if (!ds) return
+
+      ds.ghost.remove()
+      dragRef.current = null
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+
+      const satStr = dropTarget
+      setDropTarget(null)
+
+      if (!satStr || !onDuplicateToWeek) return
+
+      const targetSaturday = new Date(satStr + 'T12:00:00') // midi pour éviter les décalages TZ
+
+      // Ne pas dupliquer sur la même semaine
+      const origSat = new Date(ds.event.start_date)
+      // Samedi de la semaine de l'original
+      const origSatDay = origSat.getDay() // 0=dim, 6=sam
+      const daysToSat = origSatDay === 6 ? 0 : (6 - origSatDay + 7) % 7 // pas de wrapping si déjà sam
+      // On compare juste la date ISO du samedi cible vs l'original
+      if (satStr === format(origSat, 'yyyy-MM-dd') && origSatDay === 6) return
+      // si l'event est un dimanche, son samedi "de semaine" est satStr quand même — on laisse passer
+
+      setDuplicating(true)
+      try {
+        await onDuplicateToWeek(ds.event, targetSaturday)
+      } finally {
+        setDuplicating(false)
+      }
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [dropTarget, onDuplicateToWeek])
+
+  // Annulation drag si Ctrl relâché pendant le drag
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Control' && dragRef.current) {
+        dragRef.current.ghost.remove()
+        dragRef.current = null
+        document.body.style.userSelect = ''
+        document.body.style.cursor = ''
+        setDropTarget(null)
+      }
+    }
+    window.addEventListener('keyup', onKey)
+    return () => window.removeEventListener('keyup', onKey)
   }, [])
 
   const columns = useMemo(() => {
@@ -116,24 +236,36 @@ export default function PlanningView({ events, categories, subcategories, season
   const semMonthTd: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 10, background: '#374151', color: 'white', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '10px', lineHeight: '1.4', padding: '4px 2px' }
   const wendMonthTd: React.CSSProperties = { position: 'sticky', left: W_SEM, zIndex: 10, background: '#374151', color: '#9ca3af', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle' }
 
-  // ── Styles cellules header (tableau séparé, jamais scrollé verticalement) ──
+  // ── Styles cellules header ──
   const thBase: React.CSSProperties = { position: 'sticky', zIndex: 20, textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '11px', boxSizing: 'border-box', padding: 0 }
   const semThStyle  = (top: number, h: number): React.CSSProperties => ({ ...thBase, left: 0,     top, height: h, background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5' })
   const wendThStyle = (top: number, h: number): React.CSSProperties => ({ ...thBase, left: W_SEM, top, height: h, background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', borderLeft: '2px solid #60a5fa' })
 
   return (
-    /*
-      SOLUTION DÉFINITIVE au bug rowSpan + sticky :
-      On sépare physiquement le header et le body en deux div scrollables distinctes.
-      - headerDiv : overflow hidden, scroll horizontal synchronisé via JS avec bodyDiv
-      - bodyDiv   : overflow auto (scroll vertical ET horizontal)
-      Le header ne scroll JAMAIS verticalement → hauteurs H1/H2 toujours stables.
-      Les colonnes Semaine/W-End restent sticky left dans les deux tableaux indépendamment.
-      Plus de rowSpan, plus de conflit de hauteur.
-    */
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 120px)' }}>
 
-      {/* ══ HEADER — tableau fixe, jamais scrollé verticalement ══ */}
+      {/* Indicateur de duplication en cours */}
+      {duplicating && (
+        <div style={{
+          position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+          background: '#1e3a8a', color: 'white', padding: '8px 18px',
+          borderRadius: 8, fontSize: 13, fontWeight: 600, zIndex: 10000,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <div style={{ width: 14, height: 14, border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+          Duplication en cours…
+        </div>
+      )}
+
+      {/* Hint Ctrl+drag (admin uniquement) */}
+      {isAdmin && onDuplicateToWeek && (
+        <div style={{ padding: '2px 8px 4px', fontSize: '10px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Copy size={10} /> <span><kbd style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 3, padding: '0 3px', fontSize: 9 }}>Ctrl</kbd> + glisser un événement pour le dupliquer dans une autre semaine</span>
+        </div>
+      )}
+
+      {/* ══ HEADER — jamais scrollé verticalement ══ */}
       <div ref={headerRef} style={{ overflowX: 'hidden', overflowY: 'hidden', flexShrink: 0 }}>
         <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
           <colgroup>
@@ -142,28 +274,24 @@ export default function PlanningView({ events, categories, subcategories, season
             {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
           </colgroup>
           <thead>
-            {/* Ligne 1 : noms des catégories (+ cellules Semaine/W-End vides) */}
             <tr style={{ height: H1 }}>
               <th style={{ ...semThStyle(0, H1), borderBottom: 'none' }}></th>
               <th style={{ ...wendThStyle(0, H1), borderBottom: 'none' }}></th>
               {catGroups.map(g => (
                 <th key={g.catId} colSpan={g.span} style={{
-                  ...thBase,
-                  top: 0, height: H1, padding: '0 4px',
+                  ...thBase, top: 0, height: H1, padding: '0 4px',
                   background: blend(g.catColor, 0.15), color: g.catColor,
                   border: `1px solid ${g.catColor}88`, borderBottom: `2px solid ${g.catColor}`,
                   overflow: 'hidden',
                 }}>{g.catName}</th>
               ))}
             </tr>
-            {/* Ligne 2 : labels Semaine/W-End + noms des sous-catégories */}
             <tr style={{ height: H2 }}>
               <th style={{ ...semThStyle(H1, H2), borderTop: 'none' }}>Semaine</th>
               <th style={{ ...wendThStyle(H1, H2), borderTop: 'none' }}>W-End</th>
               {columns.map(col => (
                 <th key={col.key} style={{
-                  ...thBase,
-                  top: H1, height: H2, padding: '3px',
+                  ...thBase, top: H1, height: H2, padding: '3px',
                   background: blend(col.catColor, 0.07), color: col.catColor,
                   border: `1px solid ${col.catColor}55`, borderTop: 'none',
                   fontWeight: 500, fontSize: '10px', lineHeight: '1.2', whiteSpace: 'normal',
@@ -174,7 +302,7 @@ export default function PlanningView({ events, categories, subcategories, season
         </table>
       </div>
 
-      {/* ══ BODY — tableau scrollable verticalement ET horizontalement ══ */}
+      {/* ══ BODY — scrollable verticalement ET horizontalement ══ */}
       <div ref={bodyRef} style={{ overflowX: 'scroll', overflowY: 'auto', flex: 1 }}>
         <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
           <colgroup>
@@ -214,6 +342,8 @@ export default function PlanningView({ events, categories, subcategories, season
                   {!isCol && monthWeeks.map(week => {
                     const isHol = isSchoolHoliday(week.monday, season.name)
                     const feries = getFeriesInWeek(week.monday, feriesMap)
+                    const satStr = format(week.saturday, 'yyyy-MM-dd')
+                    const isDropTarget = dropTarget === satStr
                     return (
                       <tr key={`w-${week.week_number}`}>
                         <td style={semTd(isHol ? '#fef08a' : '#eff6ff', isHol ? '#854d0e' : '#1e40af')}>
@@ -231,8 +361,31 @@ export default function PlanningView({ events, categories, subcategories, season
                           <div>Dim {format(week.sunday, 'dd/MM')}</div>
                         </td>
                         {columns.map(col => (
-                          <td key={col.key} style={{ border: '1px solid #dde3ec', borderLeft: `2px solid ${col.catColor}44`, padding: '3px', verticalAlign: 'top', background: isHol ? '#fef9c3' : 'white' }}>
-                            {getColEvs(week.events, col).map(ev => <EventBadge key={ev.id} event={ev} onClick={() => onEventClick(ev)} />)}
+                          <td
+                            key={col.key}
+                            data-saturday={satStr}
+                            style={{
+                              border: '1px solid #dde3ec',
+                              borderLeft: `2px solid ${col.catColor}44`,
+                              padding: '3px',
+                              verticalAlign: 'top',
+                              background: isDropTarget
+                                ? '#dbeafe'   // highlight drop zone
+                                : isHol ? '#fef9c3' : 'white',
+                              outline: isDropTarget ? '2px dashed #3b82f6' : 'none',
+                              outlineOffset: '-2px',
+                              transition: 'background 0.1s',
+                            }}
+                          >
+                            {getColEvs(week.events, col).map(ev => (
+                              <EventBadge
+                                key={ev.id}
+                                event={ev}
+                                onClick={() => onEventClick(ev)}
+                                onMouseDown={(e) => handleBadgeMouseDown(e, ev)}
+                                isAdmin={isAdmin}
+                              />
+                            ))}
                           </td>
                         ))}
                       </tr>
@@ -244,15 +397,39 @@ export default function PlanningView({ events, categories, subcategories, season
           </tbody>
         </table>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
 
-function EventBadge({ event, onClick }: { event: CalendarEvent; onClick: () => void }) {
+function EventBadge({
+  event, onClick, onMouseDown, isAdmin,
+}: {
+  event: CalendarEvent
+  onClick: () => void
+  onMouseDown?: (e: React.MouseEvent) => void
+  isAdmin?: boolean
+}) {
   const color = STATUS_COLOR[event.status] ?? '#94a3b8'
   const title = event.subcategory ? `${event.subcategory.name} — ${event.title}` : event.title
   return (
-    <button onClick={onClick} title={`${title}${event.location ? ` · ${event.location}` : ''}`} style={{ display: 'block', width: '100%', textAlign: 'left', background: color+'22', border: `1px solid ${color}55`, borderLeft: `3px solid ${color}`, color: '#1e293b', padding: '2px 4px', marginBottom: '2px', borderRadius: '2px', fontSize: '10px', lineHeight: '1.3', cursor: 'pointer', overflow: 'hidden', textDecoration: event.status === 'annule' ? 'line-through' : 'none', opacity: event.status === 'annule' ? 0.6 : 1 }}>
+    <button
+      onClick={onClick}
+      onMouseDown={onMouseDown}
+      title={`${title}${event.location ? ` · ${event.location}` : ''}${isAdmin ? '\n[Ctrl+glisser pour dupliquer]' : ''}`}
+      style={{
+        display: 'block', width: '100%', textAlign: 'left',
+        background: color+'22', border: `1px solid ${color}55`,
+        borderLeft: `3px solid ${color}`, color: '#1e293b',
+        padding: '2px 4px', marginBottom: '2px', borderRadius: '2px',
+        fontSize: '10px', lineHeight: '1.3',
+        cursor: isAdmin ? 'grab' : 'pointer',
+        overflow: 'hidden',
+        textDecoration: event.status === 'annule' ? 'line-through' : 'none',
+        opacity: event.status === 'annule' ? 0.6 : 1,
+      }}
+    >
       <span style={{ color, fontWeight: 600, fontSize: '9px', marginRight: '3px' }}>{formatShortDate(event.start_date)}</span>
       <strong style={{ fontWeight: 500 }}>{title}</strong>
       {event.location && <span style={{ color: '#64748b' }}> · {event.location}</span>}

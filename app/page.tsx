@@ -17,6 +17,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { exportToExcel } from '@/lib/excel-utils'
 import { exportToPDF } from '@/lib/pdf-utils'
+import { addDays, format } from 'date-fns'
 import type { CalendarEvent, Season } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -80,6 +81,49 @@ export default function HomePage() {
     } as unknown as CalendarEvent
     setEditingEvent(copy)
     setShowForm(true)
+  }
+
+
+  // Duplication silencieuse par Ctrl+drag depuis PlanningView
+  const handleDuplicateToWeek = async (event: CalendarEvent, targetSaturday: Date) => {
+    const origStart = new Date(event.start_date)
+    const origEnd   = new Date(event.end_date)
+    const duration  = Math.round((origEnd.getTime() - origStart.getTime()) / 86400000)
+
+    // Même jour de semaine que l'original, ancré sur le samedi cible
+    // Semaine sportive : sam=+0, dim=+1, lun=+2, mar=+3, mer=+4, jeu=+5, ven=+6
+    const origDow = origStart.getDay() // 0=dim, 1=lun, ..., 6=sam
+    let offsetFromSat: number
+    if (origDow === 6) offsetFromSat = 0
+    else if (origDow === 0) offsetFromSat = 1
+    else offsetFromSat = origDow + 1  // lun=2, mar=3, mer=4, jeu=5, ven=6
+
+    const newStart = addDays(targetSaturday, offsetFromSat)
+    const newEnd   = addDays(newStart, duration)
+    const toISO = (d: Date) => d.toISOString().slice(0, 10)
+
+    const { error } = await supabase.from('events').insert({
+      season_id:        event.season_id,
+      category_id:      event.category_id,
+      subcategory_id:   event.subcategory_id,
+      title:            event.title,
+      description:      event.description,
+      location:         event.location,
+      target_audience:  event.target_audience,
+      start_date:       toISO(newStart),
+      end_date:         toISO(newEnd),
+      week_number:      event.week_number,
+      sport_week_start: toISO(targetSaturday),
+      status:           event.status,
+      color:            event.color,
+    })
+
+    if (error) {
+      toast.error('Erreur lors de la duplication')
+    } else {
+      toast.success(`✔ Dupliqué → sem. du ${format(targetSaturday, 'dd/MM/yyyy')}`)
+      refresh()
+    }
   }
 
   const isLoading = loadingSeasons || loadingCats || loadingEvents
@@ -186,6 +230,8 @@ export default function HomePage() {
             subcategories={subcategories}
             season={activeSeason}
             onEventClick={setSelectedEvent}
+            isAdmin={isAdmin}
+            onDuplicateToWeek={isAdmin ? handleDuplicateToWeek : undefined}
             filterCategoryId={filters.categoryId}
             filterMonth={filters.month}
             filterKeyword={filters.keyword}
