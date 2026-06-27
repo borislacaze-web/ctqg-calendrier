@@ -44,7 +44,7 @@ export default function HomePage() {
     }
   }, [seasons])
 
-  const { events, loading: loadingEvents, refresh } = useEvents(
+  const { events, loading: loadingEvents, refresh, appendEvent } = useEvents(
     activeSeason?.id,
     {
       categoryId: filters.categoryId || undefined,
@@ -121,8 +121,23 @@ export default function HomePage() {
     if (error) {
       toast.error('Erreur lors de la duplication')
     } else {
+      // Récupérer l'event créé avec ses relations pour l'injecter sans refresh
+      const { data: created } = await supabase
+        .from('events')
+        .select('*, category:categories(*), subcategory:subcategories(*), event_documents(*)')
+        .eq('season_id', event.season_id)
+        .eq('start_date', toISO(newStart))
+        .eq('title', event.title)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (created) {
+        appendEvent(created)
+      } else {
+        refresh() // fallback
+      }
       toast.success(`✔ Dupliqué → sem. du ${format(targetSaturday, 'dd/MM/yyyy')}`)
-      refresh()
     }
   }
 
@@ -230,6 +245,7 @@ export default function HomePage() {
             subcategories={subcategories}
             season={activeSeason}
             onEventClick={setSelectedEvent}
+            onEventDoubleClick={isAdmin ? (ev) => { setEditingEvent(ev); setShowForm(true) } : undefined}
             isAdmin={isAdmin}
             onDuplicateToWeek={isAdmin ? handleDuplicateToWeek : undefined}
             filterCategoryId={filters.categoryId}

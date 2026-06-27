@@ -31,6 +31,7 @@ interface Props {
   subcategories: Subcategory[]
   season: Season
   onEventClick: (event: CalendarEvent) => void
+  onEventDoubleClick?: (event: CalendarEvent) => void
   onDuplicateToWeek?: (event: CalendarEvent, targetSaturday: Date) => Promise<void>
   filterCategoryId?: string
   filterMonth?: string
@@ -46,7 +47,7 @@ interface DragState {
 
 export default function PlanningView({
   events, categories, subcategories, season,
-  onEventClick, onDuplicateToWeek,
+  onEventClick, onEventDoubleClick, onDuplicateToWeek,
   filterCategoryId, filterMonth, filterKeyword,
   isAdmin,
 }: Props) {
@@ -375,6 +376,7 @@ export default function PlanningView({
                                 key={ev.id}
                                 event={ev}
                                 onClick={() => onEventClick(ev)}
+                                onDoubleClick={isAdmin && onEventDoubleClick ? () => onEventDoubleClick(ev) : undefined}
                                 onMouseDown={(e) => handleBadgeMouseDown(e, ev)}
                                 isAdmin={isAdmin}
                               />
@@ -397,10 +399,11 @@ export default function PlanningView({
 }
 
 function EventBadge({
-  event, onClick, onMouseDown, isAdmin,
+  event, onClick, onDoubleClick, onMouseDown, isAdmin,
 }: {
   event: CalendarEvent
   onClick: () => void
+  onDoubleClick?: () => void
   onMouseDown?: (e: React.MouseEvent) => void
   isAdmin?: boolean
 }) {
@@ -409,6 +412,7 @@ function EventBadge({
   return (
     <button
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onMouseDown={onMouseDown}
       title={`${title}${event.location ? ` · ${event.location}` : ''}`}
       style={{
