@@ -59,20 +59,21 @@ export default function PlanningView({
   const defaultCollapsed = useMemo(() => {
     const now = new Date()
     const collapsed = new Set<string>()
-    const allMonthKeys = new Set<string>()
+    const allMonthKeys: string[] = []
     for (const week of weeks) {
-      allMonthKeys.add(format(week.monday, 'yyyy-MM'))
+      const key = format(week.monday, 'yyyy-MM')
+      if (!allMonthKeys.includes(key)) allMonthKeys.push(key)
     }
-    for (const key of allMonthKeys) {
-      const [y, m] = key.split('-').map(Number)
-      // Juin, Juillet, Août toujours rétractés
-      if (m === 6 || m === 7 || m === 8) { collapsed.add(key); continue }
-      // Mois passés rétractés (avant le mois en cours)
+    allMonthKeys.forEach(key => {
+      const parts = key.split('-')
+      const y = parseInt(parts[0])
+      const m = parseInt(parts[1])
+      if (m === 6 || m === 7 || m === 8) { collapsed.add(key); return }
       const monthStart = new Date(y, m - 1, 1)
       if (isBefore(monthStart, startOfMonth(now))) {
         collapsed.add(key)
       }
-    }
+    })
     return collapsed
   }, [weeks])
 
