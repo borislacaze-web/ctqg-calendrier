@@ -19,12 +19,11 @@ const STATUS_COLOR: Record<string,string> = {
   previsionnel: '#94a3b8', confirme: '#22c55e', annule: '#ef4444', reporte: '#f97316',
 }
 
-// Dimensions fixes
 const W_SEM  = 82
 const W_WEND = 96
 const W_COL  = 130
-const H1 = 28  // hauteur ligne catégories
-const H2 = 42  // hauteur ligne sous-catégories
+const H1 = 28
+const H2 = 42
 
 interface Props {
   events: CalendarEvent[]
@@ -42,15 +41,11 @@ export default function PlanningView({ events, categories, subcategories, season
   const feriesMap = useMemo(() => getJoursFeriesSaison(startYear), [startYear])
   const weeks = useMemo(() => assignEventsToWeeks(getSeasonWeeks(season.start_date, season.end_date), events), [season, events])
 
-  // Mois rétractés : basé sur le SAMEDI de la semaine (pas le lundi)
   const defaultCollapsed = useMemo(() => {
     const now = new Date()
     const seen: string[] = []
     const col = new Set<string>()
-    weeks.forEach(w => {
-      const key = format(w.saturday, 'yyyy-MM') // clé basée sur le samedi
-      if (!seen.includes(key)) seen.push(key)
-    })
+    weeks.forEach(w => { const k = format(w.saturday, 'yyyy-MM'); if (!seen.includes(k)) seen.push(k) })
     seen.forEach(key => {
       const p = key.split('-'), y = parseInt(p[0]), m = parseInt(p[1])
       if (m === 6 || m === 7 || m === 8) { col.add(key); return }
@@ -66,33 +61,21 @@ export default function PlanningView({ events, categories, subcategories, season
     const cats = filterCategoryId ? categories.filter(c => c.id === filterCategoryId) : categories
     for (const cat of cats) {
       const subs = subcategories.filter(s => s.category_id === cat.id && s.is_active)
-      if (subs.length === 0) {
-        cols.push({ catId: cat.id, catName: cat.name, catColor: cat.color, subId: null, subName: null, key: `cat-${cat.id}` })
-      } else {
-        subs.forEach(sub => cols.push({ catId: cat.id, catName: cat.name, catColor: cat.color, subId: sub.id, subName: sub.name, key: `sub-${sub.id}` }))
-      }
+      if (subs.length === 0) cols.push({ catId: cat.id, catName: cat.name, catColor: cat.color, subId: null, subName: null, key: `cat-${cat.id}` })
+      else subs.forEach(sub => cols.push({ catId: cat.id, catName: cat.name, catColor: cat.color, subId: sub.id, subName: sub.name, key: `sub-${sub.id}` }))
     }
     return cols
   }, [categories, subcategories, filterCategoryId])
 
   const catGroups = useMemo(() => {
     const groups: { catId: string; catName: string; catColor: string; span: number }[] = []
-    columns.forEach(col => {
-      const last = groups[groups.length - 1]
-      if (last?.catId === col.catId) last.span++
-      else groups.push({ catId: col.catId, catName: col.catName, catColor: col.catColor, span: 1 })
-    })
+    columns.forEach(col => { const last = groups[groups.length-1]; if (last?.catId === col.catId) last.span++; else groups.push({ catId: col.catId, catName: col.catName, catColor: col.catColor, span: 1 }) })
     return groups
   }, [columns])
 
-  // Regrouper semaines par mois du SAMEDI
   const weeksByMonth = useMemo(() => {
     const map = new Map<string, typeof weeks>()
-    weeks.forEach(w => {
-      const k = format(w.saturday, 'yyyy-MM')
-      if (!map.has(k)) map.set(k, [])
-      map.get(k)!.push(w)
-    })
+    weeks.forEach(w => { const k = format(w.saturday, 'yyyy-MM'); if (!map.has(k)) map.set(k, []); map.get(k)!.push(w) })
     return map
   }, [weeks])
 
@@ -114,82 +97,53 @@ export default function PlanningView({ events, categories, subcategories, season
 
   const tableW = W_SEM + W_WEND + columns.length * W_COL
 
-  return (
-    <div
-      id="planning-scroll"
-      style={{ width: '100%', overflowX: 'scroll', overflowY: 'auto', maxHeight: 'calc(100vh - 120px)' }}
-      onScroll={e => {
-        const hs = document.getElementById('planning-header')
-        if (hs) hs.scrollLeft = (e.target as HTMLDivElement).scrollLeft
-      }}
-    >
-      {/* ══ EN-TÊTES (sticky top) ══ */}
-      <div id="planning-header-wrap" style={{
-        position: 'sticky', top: 0, zIndex: 40,
-        width: tableW, minWidth: tableW,
-        overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-      }}>
-        <div id="planning-header" style={{ overflowX: 'hidden', width: tableW }}>
-          <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
-            <colgroup>
-              <col style={{ width: W_SEM }} />
-              <col style={{ width: W_WEND }} />
-              {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
-            </colgroup>
-            <tbody>
-              <tr style={{ height: H1 }}>
-                {/* Semaine — rowspan 2, sticky left */}
-                <td rowSpan={2} style={{
-                  position: 'sticky', left: 0, zIndex: 50,
-                  width: W_SEM, height: H1+H2,
-                  background: '#1e3a8a', color: 'white',
-                  border: '1px solid #2d4fb5',
-                  textAlign: 'center', verticalAlign: 'middle',
-                  fontWeight: 700, fontSize: '11px',
-                }}>Semaine</td>
-                {/* W-End — rowspan 2, sticky left */}
-                <td rowSpan={2} style={{
-                  position: 'sticky', left: W_SEM, zIndex: 50,
-                  width: W_WEND, height: H1+H2,
-                  background: '#1e3a8a', color: 'white',
-                  border: '1px solid #2d4fb5', borderLeft: '2px solid #60a5fa',
-                  textAlign: 'center', verticalAlign: 'middle',
-                  fontWeight: 700, fontSize: '11px',
-                }}>W-End</td>
-                {/* Catégories */}
-                {catGroups.map(g => (
-                  <td key={g.catId} colSpan={g.span} style={{
-                    background: blend(g.catColor, 0.15), color: g.catColor,
-                    border: `1px solid ${g.catColor}88`, borderBottom: `2px solid ${g.catColor}`,
-                    textAlign: 'center', verticalAlign: 'middle',
-                    fontWeight: 700, fontSize: '11px', height: H1,
-                  }}>{g.catName}</td>
-                ))}
-              </tr>
-              <tr style={{ height: H2 }}>
-                {/* Sous-catégories */}
-                {columns.map(col => (
-                  <td key={col.key} style={{
-                    background: blend(col.catColor, 0.07), color: col.catColor,
-                    border: `1px solid ${col.catColor}55`, borderTop: 'none',
-                    textAlign: 'center', verticalAlign: 'middle',
-                    fontWeight: 500, fontSize: '10px', lineHeight: '1.2',
-                    whiteSpace: 'normal', padding: '3px', height: H2,
-                  }}>{col.subName ?? ''}</td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+  // Styles sticky réutilisés dans thead et tbody
+  const semTh: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 50, background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '11px' }
+  const wendTh: React.CSSProperties = { position: 'sticky', left: W_SEM, zIndex: 50, background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', borderLeft: '2px solid #60a5fa', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '11px' }
+  const semTd = (bg: string, color: string): React.CSSProperties => ({ position: 'sticky', left: 0, zIndex: 10, background: bg, color, border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8', textAlign: 'center', verticalAlign: 'middle', padding: '4px 2px' })
+  const wendTd = (bg: string): React.CSSProperties => ({ position: 'sticky', left: W_SEM, zIndex: 10, background: bg, border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8', borderLeft: '2px solid #bfdbfe', textAlign: 'center', verticalAlign: 'middle', color: '#64748b', fontSize: '10px', lineHeight: '1.8', padding: '4px 5px' })
+  const semMonthTd: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 10, background: '#374151', color: 'white', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '10px', lineHeight: '1.4', padding: '4px 2px' }
+  const wendMonthTd: React.CSSProperties = { position: 'sticky', left: W_SEM, zIndex: 10, background: '#374151', color: '#9ca3af', border: '1px solid #4b5563', textAlign: 'center', verticalAlign: 'middle' }
 
-      {/* ══ CORPS — UN SEUL tableau pour que les sticky left soient cohérents ══ */}
+  return (
+    <div style={{ width: '100%', overflowX: 'scroll', overflowY: 'auto', maxHeight: 'calc(100vh - 120px)' }}>
+      {/* ══ UN SEUL tableau — thead sticky top, colonnes sticky left ══ */}
       <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
         <colgroup>
           <col style={{ width: W_SEM }} />
           <col style={{ width: W_WEND }} />
           {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
         </colgroup>
+
+        {/* En-têtes — sticky top ET colonnes sticky left dans le même contexte */}
+        <thead>
+          <tr style={{ height: H1 }}>
+            <th rowSpan={2} style={{ ...semTh, top: 0, height: H1+H2 }}>Semaine</th>
+            <th rowSpan={2} style={{ ...wendTh, top: 0, height: H1+H2 }}>W-End</th>
+            {catGroups.map(g => (
+              <th key={g.catId} colSpan={g.span} style={{
+                position: 'sticky', top: 0, zIndex: 30,
+                background: blend(g.catColor, 0.15), color: g.catColor,
+                border: `1px solid ${g.catColor}88`, borderBottom: `2px solid ${g.catColor}`,
+                textAlign: 'center', verticalAlign: 'middle',
+                fontWeight: 700, fontSize: '11px', height: H1,
+              }}>{g.catName}</th>
+            ))}
+          </tr>
+          <tr style={{ height: H2 }}>
+            {columns.map(col => (
+              <th key={col.key} style={{
+                position: 'sticky', top: H1, zIndex: 30,
+                background: blend(col.catColor, 0.07), color: col.catColor,
+                border: `1px solid ${col.catColor}55`, borderTop: 'none',
+                textAlign: 'center', verticalAlign: 'middle',
+                fontWeight: 500, fontSize: '10px', lineHeight: '1.2',
+                whiteSpace: 'normal', padding: '3px', height: H2,
+              }}>{col.subName ?? ''}</th>
+            ))}
+          </tr>
+        </thead>
+
         <tbody>
           {Array.from(weeksByMonth.entries()).map(([monthKey, monthWeeks]) => {
             const isCol = collapsed.has(monthKey)
@@ -206,93 +160,41 @@ export default function PlanningView({ events, categories, subcategories, season
 
             return (
               <>
-                {/* ── Ligne mois ── */}
-                <tr key={`m-${monthKey}`}
-                  onClick={() => setCollapsed(prev => { const n = new Set(prev); if (n.has(monthKey)) n.delete(monthKey); else n.add(monthKey); return n })}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {/* Col Semaine : mois abrégé — sticky */}
-                  <td style={{
-                    position: 'sticky', left: 0, zIndex: 10,
-                    background: '#374151', color: 'white',
-                    border: '1px solid #4b5563',
-                    textAlign: 'center', verticalAlign: 'middle',
-                    fontWeight: 700, fontSize: '10px', lineHeight: '1.4',
-                    padding: '4px 2px',
-                  }}>
+                <tr key={`m-${monthKey}`} onClick={() => setCollapsed(prev => { const n = new Set(prev); if (n.has(monthKey)) n.delete(monthKey); else n.add(monthKey); return n })} style={{ cursor: 'pointer' }}>
+                  <td style={semMonthTd}>
                     <div>{format(monthDate, 'MMM', { locale: fr }).toUpperCase()}</div>
                     <div style={{ fontSize: '9px', fontWeight: 400 }}>{format(monthDate, 'yyyy')}</div>
                   </td>
-                  {/* Col W-End : flèche — sticky */}
-                  <td style={{
-                    position: 'sticky', left: W_SEM, zIndex: 10,
-                    background: '#374151', color: '#9ca3af',
-                    border: '1px solid #4b5563',
-                    textAlign: 'center', verticalAlign: 'middle',
-                  }}>
-                    {isCol
-                      ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} />
-                      : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />
-                    }
+                  <td style={wendMonthTd}>
+                    {isCol ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} /> : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />}
                   </td>
-                  {/* Reste : fond gris */}
-                  <td colSpan={columns.length} style={{
-                    background: '#374151', border: '1px solid #4b5563', padding: '4px 12px',
-                  }}>
-                    {!hasEvts && !filterKeyword && (
-                      <span style={{ fontSize: '10px', color: '#9ca3af' }}>Aucun événement</span>
-                    )}
+                  <td colSpan={columns.length} style={{ background: '#374151', border: '1px solid #4b5563', padding: '4px 12px' }}>
+                    {!hasEvts && !filterKeyword && <span style={{ fontSize: '10px', color: '#9ca3af' }}>Aucun événement</span>}
                   </td>
                 </tr>
 
-                {/* ── Lignes semaines ── */}
                 {!isCol && monthWeeks.map(week => {
                   const isHol = isSchoolHoliday(week.monday, season.name)
                   const feries = getFeriesInWeek(week.monday, feriesMap)
                   return (
                     <tr key={`w-${week.week_number}`}>
-                      {/* Col Semaine — sticky, centré */}
-                      <td style={{
-                        position: 'sticky', left: 0, zIndex: 10,
-                        background: isHol ? '#fef08a' : '#eff6ff',
-                        color: isHol ? '#854d0e' : '#1e40af',
-                        border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8',
-                        textAlign: 'center', verticalAlign: 'middle', padding: '4px 2px',
-                      }}>
+                      <td style={semTd(isHol ? '#fef08a' : '#eff6ff', isHol ? '#854d0e' : '#1e40af')}>
                         <div style={{ fontWeight: 700, fontSize: '13px' }}>S{week.week_number}</div>
                         {isHol && <div style={{ fontSize: '9px', color: '#854d0e' }}>Vacances</div>}
                         {feries.map(f => (
-                          <div key={f.date} title={f.nom} style={{
-                            marginTop: '3px', background: '#E0F5EC', color: '#1a6b45',
-                            fontSize: '8px', padding: '1px 3px', borderRadius: '2px',
-                            fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>
+                          <div key={f.date} title={f.nom} style={{ marginTop: '3px', background: '#E0F5EC', color: '#1a6b45', fontSize: '8px', padding: '1px 3px', borderRadius: '2px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             🟢 {f.nom}
                             <div style={{ fontWeight: 400 }}>{format(parseISO(f.date), 'dd/MM')}</div>
                           </div>
                         ))}
                       </td>
-                      {/* Col W-End — sticky, centré */}
-                      <td style={{
-                        position: 'sticky', left: W_SEM, zIndex: 10,
-                        background: isHol ? '#fefce8' : '#f8fafc',
-                        border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8', borderLeft: '2px solid #bfdbfe',
-                        textAlign: 'center', verticalAlign: 'middle',
-                        color: '#64748b', fontSize: '10px', lineHeight: '1.8', padding: '4px 5px',
-                      }}>
+                      <td style={wendTd(isHol ? '#fefce8' : '#f8fafc')}>
                         <div>Sam {format(week.saturday, 'dd/MM')}</div>
                         <div>Dim {format(week.sunday, 'dd/MM')}</div>
                       </td>
-                      {/* Cellules données */}
                       {columns.map(col => (
-                        <td key={col.key} style={{
-                          border: '1px solid #dde3ec', borderLeft: `2px solid ${col.catColor}44`,
-                          padding: '3px', verticalAlign: 'top',
-                          background: isHol ? '#fef9c3' : 'white',
-                        }}>
-                          {getColEvs(week.events, col).map(ev => (
-                            <EventBadge key={ev.id} event={ev} onClick={() => onEventClick(ev)} />
-                          ))}
+                        <td key={col.key} style={{ border: '1px solid #dde3ec', borderLeft: `2px solid ${col.catColor}44`, padding: '3px', verticalAlign: 'top', background: isHol ? '#fef9c3' : 'white' }}>
+                          {getColEvs(week.events, col).map(ev => <EventBadge key={ev.id} event={ev} onClick={() => onEventClick(ev)} />)}
                         </td>
                       ))}
                     </tr>
@@ -311,17 +213,7 @@ function EventBadge({ event, onClick }: { event: CalendarEvent; onClick: () => v
   const color = STATUS_COLOR[event.status] ?? '#94a3b8'
   const title = event.subcategory ? `${event.subcategory.name} — ${event.title}` : event.title
   return (
-    <button onClick={onClick}
-      title={`${title}${event.location ? ` · ${event.location}` : ''}`}
-      style={{
-        display: 'block', width: '100%', textAlign: 'left',
-        background: color + '22', border: `1px solid ${color}55`, borderLeft: `3px solid ${color}`,
-        color: '#1e293b', padding: '2px 4px', marginBottom: '2px', borderRadius: '2px',
-        fontSize: '10px', lineHeight: '1.3', cursor: 'pointer', overflow: 'hidden',
-        textDecoration: event.status === 'annule' ? 'line-through' : 'none',
-        opacity: event.status === 'annule' ? 0.6 : 1,
-      }}
-    >
+    <button onClick={onClick} title={`${title}${event.location ? ` · ${event.location}` : ''}`} style={{ display: 'block', width: '100%', textAlign: 'left', background: color+'22', border: `1px solid ${color}55`, borderLeft: `3px solid ${color}`, color: '#1e293b', padding: '2px 4px', marginBottom: '2px', borderRadius: '2px', fontSize: '10px', lineHeight: '1.3', cursor: 'pointer', overflow: 'hidden', textDecoration: event.status === 'annule' ? 'line-through' : 'none', opacity: event.status === 'annule' ? 0.6 : 1 }}>
       <span style={{ color, fontWeight: 600, fontSize: '9px', marginRight: '3px' }}>{formatShortDate(event.start_date)}</span>
       <strong style={{ fontWeight: 500 }}>{title}</strong>
       {event.location && <span style={{ color: '#64748b' }}> · {event.location}</span>}
