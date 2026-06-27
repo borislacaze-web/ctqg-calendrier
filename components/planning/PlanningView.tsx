@@ -84,8 +84,35 @@ export default function PlanningView({
     Aucun td sticky nulle part → zéro conflit de stacking context
   */
   const fixedBodyRef  = useRef<HTMLDivElement>(null)
+  const fixedBodyTableRef = useRef<HTMLTableElement>(null)
+  const scrollBodyTableRef = useRef<HTMLTableElement>(null)
   const scrollBodyRef = useRef<HTMLDivElement>(null)
   const scrollHeaderRef = useRef<HTMLDivElement>(null)
+
+  // Synchronisation des hauteurs de lignes entre colonne fixe et zone scrollable
+  const syncRowHeights = useCallback(() => {
+    const fixedTable  = fixedBodyTableRef.current
+    const scrollTable = scrollBodyTableRef.current
+    if (!fixedTable || !scrollTable) return
+
+    const fixedRows  = Array.from(fixedTable.querySelectorAll('tr'))
+    const scrollRows = Array.from(scrollTable.querySelectorAll('tr'))
+    const len = Math.min(fixedRows.length, scrollRows.length)
+
+    for (let i = 0; i < len; i++) {
+      // Reset d'abord pour mesurer la hauteur naturelle
+      ;(fixedRows[i] as HTMLElement).style.height = ''
+      ;(scrollRows[i] as HTMLElement).style.height = ''
+    }
+    for (let i = 0; i < len; i++) {
+      const h = Math.max(
+        (fixedRows[i] as HTMLElement).getBoundingClientRect().height,
+        (scrollRows[i] as HTMLElement).getBoundingClientRect().height,
+      )
+      ;(fixedRows[i] as HTMLElement).style.height = `${h}px`
+      ;(scrollRows[i] as HTMLElement).style.height = `${h}px`
+    }
+  }, [])
 
   useEffect(() => {
     const sb = scrollBodyRef.current
@@ -93,12 +120,22 @@ export default function PlanningView({
     const sh = scrollHeaderRef.current
     if (!sb || !fb || !sh) return
     const onScroll = () => {
-      fb.scrollTop   = sb.scrollTop    // sync vertical   → colonne fixe gauche
-      sh.scrollLeft  = sb.scrollLeft   // sync horizontal → header
+      fb.scrollTop   = sb.scrollTop
+      sh.scrollLeft  = sb.scrollLeft
     }
     sb.addEventListener('scroll', onScroll, { passive: true })
     return () => sb.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Sync hauteurs après chaque render ET si le contenu change de taille
+  useEffect(() => {
+    syncRowHeights()
+    const scrollTable = scrollBodyTableRef.current
+    if (!scrollTable) return
+    const ro = new ResizeObserver(syncRowHeights)
+    ro.observe(scrollTable)
+    return () => ro.disconnect()
+  })
 
   // ── Drag-to-duplicate ──
   const dragRef = useRef<DragState | null>(null)
@@ -415,7 +452,7 @@ export default function PlanningView({
 
         {/* Corps fixe gauche : Semaine + W-End — scroll vertical synchronisé, jamais horizontal */}
         <div ref={fixedBodyRef} style={{ width: fixedW, minWidth: fixedW, overflowY: 'hidden', overflowX: 'hidden', flexShrink: 0 }}>
-          <table style={{ tableLayout: 'fixed', width: fixedW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
+          <table ref={fixedBodyTableRef} style={{ tableLayout: 'fixed', width: fixedW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               <col style={{ width: W_SEM }} />
               <col style={{ width: W_WEND }} />
@@ -426,7 +463,7 @@ export default function PlanningView({
 
         {/* Corps scrollable droite : colonnes événements */}
         <div ref={scrollBodyRef} style={{ overflowX: 'auto', overflowY: 'auto', flex: 1 }}>
-          <table style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
+          <table ref={scrollBodyTableRef} style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
             </colgroup>
