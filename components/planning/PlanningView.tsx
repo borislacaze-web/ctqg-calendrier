@@ -1,7 +1,7 @@
 // components/planning/PlanningView.tsx
 'use client'
-import { useMemo, useState, useRef } from 'react'
-import { format } from 'date-fns'
+import { useMemo, useState } from 'react'
+import { format, isBefore, startOfMonth, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import type { CalendarEvent, Category, Subcategory, Season } from '@/types'
@@ -17,11 +17,19 @@ function blendWithWhite(hex: string, alpha: number): string {
   return `rgb(${Math.round(r*alpha+255*(1-alpha))},${Math.round(g*alpha+255*(1-alpha))},${Math.round(b*alpha+255*(1-alpha))})`
 }
 
-const W_SEM  = 82
-const W_WEND = 96
-const W_COL  = 130
-const H_ROW1 = 28  // hauteur ligne catégories
-const H_ROW2 = 42  // hauteur ligne sous-catégories
+// Couleurs par statut
+const STATUS_BG: Record<string, string> = {
+  previsionnel: '#94a3b8',
+  confirme:     '#22c55e',
+  annule:       '#ef4444',
+  reporte:      '#f97316',
+}
+
+const W_SEM   = 82
+const W_WEND  = 96
+const W_COL   = 130
+const H_ROW1  = 28
+const H_ROW2  = 42
 const H_THEAD = H_ROW1 + H_ROW2
 
 interface Props {
@@ -39,7 +47,6 @@ export default function PlanningView({
   events, categories, subcategories, season, onEventClick,
   filterCategoryId, filterMonth, filterKeyword
 }: Props) {
-  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
   const startYear = parseInt(season.name.split('/')[0])
   const feriesMap = useMemo(() => getJoursFeriesSaison(startYear), [startYear])
 
@@ -47,6 +54,29 @@ export default function PlanningView({
     const allWeeks = getSeasonWeeks(season.start_date, season.end_date)
     return assignEventsToWeeks(allWeeks, events)
   }, [season, events])
+
+  // Calcul des mois rétractés par défaut
+  const defaultCollapsed = useMemo(() => {
+    const now = new Date()
+    const collapsed = new Set<string>()
+    const allMonthKeys = new Set<string>()
+    for (const week of weeks) {
+      allMonthKeys.add(format(week.monday, 'yyyy-MM'))
+    }
+    for (const key of allMonthKeys) {
+      const [y, m] = key.split('-').map(Number)
+      // Juin, Juillet, Août toujours rétractés
+      if (m === 6 || m === 7 || m === 8) { collapsed.add(key); continue }
+      // Mois passés rétractés (avant le mois en cours)
+      const monthStart = new Date(y, m - 1, 1)
+      if (isBefore(monthStart, startOfMonth(now))) {
+        collapsed.add(key)
+      }
+    }
+    return collapsed
+  }, [weeks])
+
+  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(defaultCollapsed)
 
   const columns = useMemo(() => {
     const cols: { catId: string; catName: string; catColor: string; subId: string|null; subName: string|null; key: string }[] = []
@@ -65,16 +95,16 @@ export default function PlanningView({
   }, [categories, subcategories, filterCategoryId])
 
   const catGroups = useMemo(() => {
-    const groups: { catId: string; catName: string; catColor: string; span: number; startIdx: number }[] = []
-    for (let i = 0; i < columns.length; i++) {
-      const col = columns[i]
+    const groups: { catId: string; catName: string; catColor: string; span: number }[] = []
+    for (const col of columns) {
       const last = groups[groups.length - 1]
       if (last && last.catId === col.catId) { last.span++ }
-      else { groups.push({ catId: col.catId, catName: col.catName, catColor: col.catColor, span: 1, startIdx: i }) }
+      else { groups.push({ catId: col.catId, catName: col.catName, catColor: col.catColor, span: 1 }) }
     }
     return groups
   }, [columns])
 
+  // Regrouper les semaines par mois (clé = yyyy-MM du premier lundi de la semaine)
   const weeksByMonth = useMemo(() => {
     const map = new Map<string, typeof weeks>()
     for (const week of weeks) {
@@ -103,9 +133,16 @@ export default function PlanningView({
       return true
     })
 
+  const toggleMonth = (key: string) => {
+    setCollapsedMonths(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
   const tableW = W_SEM + W_WEND + columns.length * W_COL
 
-  // Style commun cellule sticky gauche
   const stickyLeft0: React.CSSProperties = { position: 'sticky', left: 0, zIndex: 10 }
   const stickyLeft1: React.CSSProperties = { position: 'sticky', left: W_SEM, zIndex: 10 }
 
@@ -118,13 +155,10 @@ export default function PlanningView({
         if (hs) hs.scrollLeft = (e.target as HTMLDivElement).scrollLeft
       }}
     >
-      {/* ══ EN-TÊTES FIXES ══ */}
+      {/* ══ EN-TÊTES STICKY ══ */}
       <div style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 40,
-        height: H_THEAD,
-        width: tableW,
+        position: 'sticky', top: 0, zIndex: 40,
+        height: H_THEAD, width: tableW,
         overflow: 'hidden',
         boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
       }}>
@@ -136,16 +170,17 @@ export default function PlanningView({
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
             </colgroup>
             <thead>
-              {/* Ligne 1 : catégories */}
               <tr style={{ height: H_ROW1 }}>
+                {/* Semaine — sticky dans l'en-tête */}
                 <th rowSpan={2} style={{
-                  ...stickyLeft0, top: 0, zIndex: 50,
+                  position: 'sticky', left: 0, top: 0, zIndex: 50,
                   background: '#1e3a8a', color: 'white',
                   border: '1px solid #2d4fb5', height: H_THEAD,
                   textAlign: 'center', fontWeight: 700, fontSize: '11px', verticalAlign: 'middle',
                 }}>Semaine</th>
+                {/* W-End — sticky dans l'en-tête */}
                 <th rowSpan={2} style={{
-                  ...stickyLeft1, top: 0, zIndex: 50,
+                  position: 'sticky', left: W_SEM, top: 0, zIndex: 50,
                   background: '#1e3a8a', color: 'white',
                   border: '1px solid #2d4fb5', borderLeft: '2px solid #60a5fa', height: H_THEAD,
                   textAlign: 'center', fontWeight: 700, fontSize: '11px', verticalAlign: 'middle',
@@ -161,14 +196,14 @@ export default function PlanningView({
                   }}>{g.catName}</th>
                 ))}
               </tr>
-              {/* Ligne 2 : sous-catégories */}
+              {/* Ligne 2 : sous-catégories — centrées verticalement */}
               <tr style={{ height: H_ROW2 }}>
                 {columns.map(col => (
                   <th key={col.key} style={{
                     background: blendWithWhite(col.catColor, 0.07),
                     color: col.catColor,
                     border: `1px solid ${col.catColor}55`, borderTop: 'none',
-                    padding: '2px 3px', textAlign: 'center',
+                    padding: '4px 3px', textAlign: 'center', verticalAlign: 'middle',
                     fontWeight: 500, fontSize: '10px',
                     lineHeight: '1.2', whiteSpace: 'normal', height: H_ROW2,
                   }}>{col.subName ?? ''}</th>
@@ -181,157 +216,172 @@ export default function PlanningView({
 
       {/* ══ CORPS ══ */}
       <table style={{ tableLayout: 'fixed', width: tableW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
-          <colgroup>
-            <col style={{ width: W_SEM }} />
-            <col style={{ width: W_WEND }} />
-            {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
-          </colgroup>
-          <tbody>
-            {Array.from(weeksByMonth.entries()).map(([monthKey, monthWeeks]) => {
-              const isCollapsed = collapsedMonths.has(monthKey)
-              const label = format(monthWeeks[0].monday, 'MMMM yyyy', { locale: fr })
-              const labelCap = label.charAt(0).toUpperCase() + label.slice(1)
-              const hasEvents = monthWeeks.some(w => columns.some(col => getColEvents(w.events, col).length > 0))
+        <colgroup>
+          <col style={{ width: W_SEM }} />
+          <col style={{ width: W_WEND }} />
+          {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
+        </colgroup>
+        <tbody>
+          {Array.from(weeksByMonth.entries()).map(([monthKey, monthWeeks]) => {
+            const isCollapsed = collapsedMonths.has(monthKey)
+            const [y, m] = monthKey.split('-').map(Number)
+            const monthDate = new Date(y, m - 1, 1)
+            const monthLabel = format(monthDate, 'MMMM yyyy', { locale: fr })
+            const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
+            const hasEvents = monthWeeks.some(w => columns.some(col => getColEvents(w.events, col).length > 0))
 
-              if (filterMonth) {
-                const m = parseInt(filterMonth)
-                if (!monthWeeks.some(w => w.monday.getMonth() + 1 === m)) return null
-              }
+            if (filterMonth) {
+              const fm = parseInt(filterMonth)
+              if (!monthWeeks.some(w => w.monday.getMonth() + 1 === fm)) return null
+            }
 
-              return (
-                <>
-                  {/* Ligne mois */}
-                  <tr key={`month-${monthKey}`} onClick={() => setCollapsedMonths(prev => {
-                    const next = new Set(prev)
-                    if (next.has(monthKey)) next.delete(monthKey); else next.add(monthKey)
-                    return next
-                  })} style={{ cursor: 'pointer' }}>
-                  {/* Colonne Semaine sticky — nom du mois abrégé */}
-                    <td style={{
-                      ...stickyLeft0,
-                      background: '#374151', color: 'white',
-                      border: '1px solid #4b5563',
-                      padding: '5px 3px', textAlign: 'center', verticalAlign: 'middle',
-                      fontWeight: 700, fontSize: '10px', lineHeight: '1.3',
-                    }}>
-                      {format(monthWeeks[0].monday, 'MMM', { locale: fr }).toUpperCase()}{'\n'}
-                      {format(monthWeeks[0].monday, 'yyyy')}
-                    </td>
-                    {/* Colonne W-End sticky — flèche */}
-                    <td style={{
-                      ...stickyLeft1,
-                      background: '#374151', color: '#9ca3af',
-                      border: '1px solid #4b5563',
-                      textAlign: 'center', verticalAlign: 'middle',
-                    }}>
-                      {isCollapsed
-                        ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} />
-                        : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />
-                      }
-                    </td>
-                    {/* Cellule grise étendue — sans nom de mois */}
-                    <td colSpan={columns.length} style={{
-                      background: '#374151',
-                      border: '1px solid #4b5563',
-                    }}>
+            return (
+              <>
+                {/* ── LIGNE MOIS (avant les semaines du mois) ── */}
+                <tr key={`month-${monthKey}`} onClick={() => toggleMonth(monthKey)} style={{ cursor: 'pointer' }}>
+                  {/* Semaine : nom du mois abrégé — sticky */}
+                  <td style={{
+                    ...stickyLeft0,
+                    background: '#374151', color: 'white',
+                    border: '1px solid #4b5563',
+                    padding: '4px 3px', textAlign: 'center', verticalAlign: 'middle',
+                    fontWeight: 700, fontSize: '10px', lineHeight: '1.4',
+                  }}>
+                    <div>{format(monthDate, 'MMM', { locale: fr }).toUpperCase()}</div>
+                    <div>{format(monthDate, 'yyyy')}</div>
+                  </td>
+                  {/* W-End : flèche — sticky */}
+                  <td style={{
+                    ...stickyLeft1,
+                    background: '#374151', color: '#9ca3af',
+                    border: '1px solid #4b5563',
+                    textAlign: 'center', verticalAlign: 'middle',
+                  }}>
+                    {isCollapsed
+                      ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} />
+                      : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />
+                    }
+                  </td>
+                  {/* Nom complet + info aucun événement */}
+                  <td colSpan={columns.length} style={{
+                    background: '#374151', color: 'white',
+                    border: '1px solid #4b5563',
+                    padding: '4px 12px', fontWeight: 700, fontSize: '12px',
+                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{monthLabelCap}</span>
                       {!hasEvents && !filterKeyword && (
-                        <span style={{ fontSize: '10px', color: '#9ca3af', paddingLeft: '8px' }}>Aucun événement</span>
+                        <span style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 400, textTransform: 'none' }}>Aucun événement</span>
                       )}
-                    </td>
-                  </tr>
+                    </div>
+                  </td>
+                </tr>
 
-                  {/* Lignes semaines */}
-                  {!isCollapsed && monthWeeks.map(week => {
-                    const isHoliday = isSchoolHoliday(week.monday, season.name)
-                    const feries = getFeriesInWeek(week.monday, feriesMap)
-                    const semBg  = isHoliday ? '#fef08a' : '#eff6ff'
-                    const semClr = isHoliday ? '#854d0e' : '#1e40af'
-                    const wendBg = isHoliday ? '#fefce8' : '#f8fafc'
-                    const rowBg  = isHoliday ? '#fef9c3' : 'white'
+                {/* ── LIGNES SEMAINES (affichées seulement si non rétracté) ── */}
+                {!isCollapsed && monthWeeks.map(week => {
+                  const isHoliday = isSchoolHoliday(week.monday, season.name)
+                  const feries = getFeriesInWeek(week.monday, feriesMap)
+                  const semBg  = isHoliday ? '#fef08a' : '#eff6ff'
+                  const semClr = isHoliday ? '#854d0e' : '#1e40af'
+                  const wendBg = isHoliday ? '#fefce8' : '#f8fafc'
+                  const rowBg  = isHoliday ? '#fef9c3' : 'white'
 
-                    return (
-                      <tr key={`week-${week.week_number}`}>
-                        <td style={{
-                          ...stickyLeft0,
-                          background: semBg, color: semClr,
-                          border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8',
-                          padding: '4px 2px', textAlign: 'center', verticalAlign: 'top',
-                        }}>
-                          <div style={{ fontWeight: 700, fontSize: '13px' }}>S{week.week_number}</div>
-                          {isHoliday && <div style={{ fontSize: '9px', color: '#854d0e' }}>Vacances</div>}
-                          {feries.map(f => (
-                            <span key={f.date} title={f.nom} style={{
-                              display: 'block', marginTop: '2px',
-                              background: '#E0F5EC', color: '#1a6b45',
-                              fontSize: '8px', padding: '1px 3px', borderRadius: '2px',
-                              fontWeight: 600, overflow: 'hidden',
-                              textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}>🟢 {f.nom}</span>
-                          ))}
-                        </td>
-                        <td style={{
-                          ...stickyLeft1,
-                          background: wendBg,
-                          border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8',
-                          borderLeft: '2px solid #bfdbfe',
-                          padding: '4px 5px', verticalAlign: 'top',
-                          color: '#64748b', fontSize: '10px', lineHeight: '1.8',
-                        }}>
-                          <div>Sam {format(week.saturday, 'dd/MM')}</div>
-                          <div>Dim {format(week.sunday, 'dd/MM')}</div>
-                        </td>
-                        {columns.map(col => {
-                          const colEvents = getColEvents(week.events, col)
-                          return (
-                            <td key={col.key} style={{
-                              border: '1px solid #dde3ec',
-                              borderLeft: `2px solid ${col.catColor}44`,
-                              padding: '3px', verticalAlign: 'top',
-                              background: rowBg,
-                            }}>
-                              {colEvents.map(ev => (
-                                <EventBadge key={ev.id} event={ev}
-                                  categoryColor={ev.color ?? col.catColor}
-                                  onClick={() => onEventClick(ev)} />
-                              ))}
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    )
-                  })}
-                </>
-              )
-            })}
-          </tbody>
-        </table>
+                  return (
+                    <tr key={`week-${week.week_number}`}>
+                      {/* Semaine — sticky, centré verticalement */}
+                      <td style={{
+                        ...stickyLeft0,
+                        background: semBg, color: semClr,
+                        border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8',
+                        padding: '4px 2px', textAlign: 'center', verticalAlign: 'middle',
+                      }}>
+                        <div style={{ fontWeight: 700, fontSize: '13px' }}>S{week.week_number}</div>
+                        {isHoliday && <div style={{ fontSize: '9px', color: '#854d0e', marginTop: '1px' }}>Vacances</div>}
+                        {feries.map(f => (
+                          <div key={f.date} title={f.nom} style={{
+                            marginTop: '3px',
+                            background: '#E0F5EC', color: '#1a6b45',
+                            fontSize: '8px', padding: '1px 3px', borderRadius: '2px',
+                            fontWeight: 600, overflow: 'hidden',
+                            textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            🟢 {f.nom}
+                            <div style={{ fontSize: '8px', fontWeight: 400, opacity: 0.8 }}>
+                              {format(parseISO(f.date), 'dd/MM')}
+                            </div>
+                          </div>
+                        ))}
+                      </td>
+
+                      {/* W-End — sticky, centré V et H */}
+                      <td style={{
+                        ...stickyLeft1,
+                        background: wendBg,
+                        border: '1px solid #cbd5e1', borderRight: '2px solid #94a3b8',
+                        borderLeft: '2px solid #bfdbfe',
+                        padding: '4px 5px', verticalAlign: 'middle', textAlign: 'center',
+                        color: '#64748b', fontSize: '10px', lineHeight: '1.8',
+                      }}>
+                        <div>Sam {format(week.saturday, 'dd/MM')}</div>
+                        <div>Dim {format(week.sunday, 'dd/MM')}</div>
+                      </td>
+
+                      {/* Cellules événements */}
+                      {columns.map(col => {
+                        const colEvents = getColEvents(week.events, col)
+                        return (
+                          <td key={col.key} style={{
+                            border: '1px solid #dde3ec',
+                            borderLeft: `2px solid ${col.catColor}44`,
+                            padding: '3px', verticalAlign: 'top',
+                            background: rowBg,
+                          }}>
+                            {colEvents.map(ev => (
+                              <EventBadge key={ev.id} event={ev}
+                                onClick={() => onEventClick(ev)} />
+                            ))}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
+              </>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
 
-function EventBadge({ event, categoryColor, onClick }: {
-  event: CalendarEvent; categoryColor: string; onClick: () => void
-}) {
-  const opacity = { previsionnel: '0.8', confirme: '1', annule: '0.5', reporte: '0.85' }[event.status] ?? '1'
+function EventBadge({ event, onClick }: { event: CalendarEvent; onClick: () => void }) {
+  const statusColor = STATUS_BG[event.status] ?? '#94a3b8'
   const subTitle = event.subcategory ? `${event.subcategory.name} — ${event.title}` : event.title
+
   return (
-    <button onClick={onClick}
+    <button
+      onClick={onClick}
       title={`${subTitle}${event.location ? ` · ${event.location}` : ''}`}
       style={{
         display: 'block', width: '100%', textAlign: 'left',
-        background: categoryColor + '18',
-        border: `1px solid ${categoryColor}40`,
-        borderLeft: `2px solid ${categoryColor}`,
-        color: categoryColor,
+        background: statusColor + '22',
+        border: `1px solid ${statusColor}55`,
+        borderLeft: `3px solid ${statusColor}`,
+        color: '#1e293b',
         padding: '2px 4px', marginBottom: '2px', borderRadius: '2px',
         fontSize: '10px', lineHeight: '1.3', cursor: 'pointer',
-        opacity, overflow: 'hidden',
+        overflow: 'hidden',
         textDecoration: event.status === 'annule' ? 'line-through' : 'none',
+        opacity: event.status === 'annule' ? 0.6 : 1,
       }}
     >
-      <span style={{ opacity: 0.65 }}>{formatShortDate(event.start_date)}</span>
-      {' '}<strong style={{ fontWeight: 500 }}>{subTitle}</strong>
-      {event.location && <span style={{ opacity: 0.6 }}> · {event.location}</span>}
+      <span style={{ color: statusColor, fontWeight: 600, fontSize: '9px', marginRight: '3px' }}>
+        {formatShortDate(event.start_date)}
+      </span>
+      <strong style={{ fontWeight: 500 }}>{subTitle}</strong>
+      {event.location && <span style={{ color: '#64748b' }}> · {event.location}</span>}
     </button>
   )
 }
