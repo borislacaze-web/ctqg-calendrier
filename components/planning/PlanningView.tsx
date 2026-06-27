@@ -409,10 +409,29 @@ function EventBadge({
 }) {
   const color = STATUS_COLOR[event.status] ?? '#94a3b8'
   const title = event.subcategory ? `${event.subcategory.name} — ${event.title}` : event.title
+
+  // Timer pour distinguer simple clic et double clic :
+  // on attend 220ms avant d'exécuter onClick — si un 2e clic arrive entre-temps,
+  // on annule le timer et on exécute onDoubleClick à la place.
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleClick = () => {
+    if (!onDoubleClick) { onClick(); return }
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current)
+      clickTimer.current = null
+      onDoubleClick()
+    } else {
+      clickTimer.current = setTimeout(() => {
+        clickTimer.current = null
+        onClick()
+      }, 220)
+    }
+  }
+
   return (
     <button
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
+      onClick={handleClick}
       onMouseDown={onMouseDown}
       title={`${title}${event.location ? ` · ${event.location}` : ''}`}
       style={{
