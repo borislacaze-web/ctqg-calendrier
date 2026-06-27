@@ -165,7 +165,7 @@ export default function HomePage() {
       </div>
 
       {/* Contenu */}
-      <main className={`flex-1 w-full ${view === 'planning' ? 'px-2 py-2' : 'max-w-[1600px] mx-auto px-4 py-4'}`}>
+      <main className="flex-1 w-full" style={view === 'planning' ? { padding: '8px' } : { maxWidth: '1600px', margin: '0 auto', padding: '16px' }}>
         {isLoading ? (
           <div className="flex items-center justify-center py-24 text-slate-400">
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
