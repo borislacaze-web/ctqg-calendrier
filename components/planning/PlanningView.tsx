@@ -4,13 +4,17 @@ import { useMemo, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ChevronUp, ChevronDown } from 'lucide-react'
-import type { CalendarEvent, Category, Season } from '@/types'
-import { getSeasonWeeks, assignEventsToWeeks, isSchoolHoliday, formatShortDate } from '@/lib/week-utils'
+import type { CalendarEvent, Category, Subcategory, Season } from '@/types'
+import {
+  getSeasonWeeks, assignEventsToWeeks, isSchoolHoliday,
+  formatShortDate, getJoursFeriesSaison, getFeriesInWeek
+} from '@/lib/week-utils'
 import { cn } from '@/lib/utils'
 
 interface Props {
   events: CalendarEvent[]
   categories: Category[]
+  subcategories: Subcategory[]
   season: Season
   onEventClick: (event: CalendarEvent) => void
   filterCategoryId?: string
@@ -19,19 +23,68 @@ interface Props {
 }
 
 export default function PlanningView({
-  events, categories, season, onEventClick,
+  events, categories, subcategories, season, onEventClick,
   filterCategoryId, filterMonth, filterKeyword
 }: Props) {
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
+
+  const startYear = parseInt(season.name.split('/')[0])
+  const feriesMap = useMemo(() => getJoursFeriesSaison(startYear), [startYear])
 
   const weeks = useMemo(() => {
     const allWeeks = getSeasonWeeks(season.start_date, season.end_date)
     return assignEventsToWeeks(allWeeks, events)
   }, [season, events])
 
-  const visibleCats = filterCategoryId
-    ? categories.filter(c => c.id === filterCategoryId)
-    : categories
+  // Structure : catégories avec leurs sous-catégories
+  // Si une catégorie a des sous-catégories → une colonne par sous-cat
+  // Sinon → une colonne pour la catégorie elle-même
+  const columns = useMemo(() => {
+    const cols: {
+      catId: string
+      catName: string
+      catColor: string
+      subId: string | null
+      subName: string | null
+      key: string
+    }[] = []
+
+    const visibleCats = filterCategoryId
+      ? categories.filter(c => c.id === filterCategoryId)
+      : categories
+
+    for (const cat of visibleCats) {
+      const subs = subcategories.filter(s => s.category_id === cat.id && s.is_active)
+      if (subs.length === 0) {
+        cols.push({
+          catId: cat.id, catName: cat.name, catColor: cat.color,
+          subId: null, subName: null, key: `cat-${cat.id}`
+        })
+      } else {
+        for (const sub of subs) {
+          cols.push({
+            catId: cat.id, catName: cat.name, catColor: cat.color,
+            subId: sub.id, subName: sub.name, key: `sub-${sub.id}`
+          })
+        }
+      }
+    }
+    return cols
+  }, [categories, subcategories, filterCategoryId])
+
+  // Groupes de catégories pour le colspan
+  const catGroups = useMemo(() => {
+    const groups: { catId: string; catName: string; catColor: string; span: number }[] = []
+    for (const col of columns) {
+      const last = groups[groups.length - 1]
+      if (last && last.catId === col.catId) {
+        last.span++
+      } else {
+        groups.push({ catId: col.catId, catName: col.catName, catColor: col.catColor, span: 1 })
+      }
+    }
+    return groups
+  }, [columns])
 
   const weeksByMonth = useMemo(() => {
     const map = new Map<string, typeof weeks>()
@@ -62,32 +115,98 @@ export default function PlanningView({
     )
   }
 
-  const getWeekEvents = (weekEvents: CalendarEvent[], catId: string) =>
-    weekEvents.filter(e =>
-      e.category_id === catId &&
-      (!filterCategoryId || e.category_id === filterCategoryId) &&
-      (!filterMonth || new Date(e.start_date).getMonth() + 1 === parseInt(filterMonth)) &&
-      matchesKeyword(e)
-    )
+  const getColEvents = (weekEvents: CalendarEvent[], col: typeof columns[0]) => {
+    return weekEvents.filter(e => {
+      if (e.category_id !== col.catId) return false
+      if (col.subId !== null && e.subcategory_id !== col.subId) return false
+      if (col.subId === null && subcategories.some(s => s.category_id === col.catId && s.is_active && e.subcategory_id === s.id)) return false
+      if (!matchesKeyword(e)) return false
+      if (filterMonth && new Date(e.start_date).getMonth() + 1 !== parseInt(filterMonth)) return false
+      return true
+    })
+  }
+
+  const totalCols = columns.length + 2 // +2 pour Semaine + W-End
 
   return (
-    <div className="planning-scroll">
-      <table className="planning-table w-full border-collapse text-xs">
-        <thead className="sticky top-0 z-20 bg-white">
+    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 130px)' }}>
+      <table style={{
+        borderCollapse: 'separate',
+        borderSpacing: 0,
+        fontSize: '11px',
+        tableLayout: 'fixed',
+        width: `${columns.length * 130 + 80 + 90}px`,
+        minWidth: '100%',
+      }}>
+        {/* Largeurs colonnes */}
+        <colgroup>
+          <col style={{ width: '80px' }} />
+          <col style={{ width: '90px' }} />
+          {columns.map(col => (
+            <col key={col.key} style={{ width: '130px' }} />
+          ))}
+        </colgroup>
+
+        <thead style={{ position: 'sticky', top: 0, zIndex: 30 }}>
+          {/* Ligne 1 : catégories */}
           <tr>
-            <th className="border border-slate-300 bg-blue-800 text-white px-2 py-2 text-left min-w-[80px] w-20 font-semibold">
+            <th rowSpan={2} style={{
+              position: 'sticky', left: 0, zIndex: 40,
+              background: '#1e3a8a', color: 'white',
+              border: '1px solid #1e40af',
+              padding: '6px 4px', textAlign: 'center', fontWeight: 600,
+              verticalAlign: 'middle', fontSize: '11px'
+            }}>
               Semaine
             </th>
-            <th className="border border-slate-300 bg-blue-800 text-white px-2 py-2 text-center min-w-[70px] w-20 font-semibold text-[11px]">
-              Ven–Dim
+            <th rowSpan={2} style={{
+              position: 'sticky', left: '80px', zIndex: 40,
+              background: '#1e3a8a', color: 'white',
+              border: '1px solid #1e40af',
+              padding: '6px 4px', textAlign: 'center', fontWeight: 600,
+              verticalAlign: 'middle', fontSize: '11px'
+            }}>
+              W-End
             </th>
-            {visibleCats.map(cat => (
+            {catGroups.map(group => (
               <th
-                key={cat.id}
-                className="border border-slate-300 px-2 py-2 text-center font-semibold text-[11px] min-w-[110px]"
-                style={{ backgroundColor: cat.color + '22', color: cat.color }}
+                key={group.catId}
+                colSpan={group.span}
+                style={{
+                  background: group.catColor + '25',
+                  color: group.catColor,
+                  border: `1px solid ${group.catColor}44`,
+                  borderBottom: `2px solid ${group.catColor}`,
+                  padding: '5px 4px',
+                  textAlign: 'center',
+                  fontWeight: 600,
+                  fontSize: '11px',
+                }}
               >
-                {cat.name}
+                {group.catName}
+              </th>
+            ))}
+          </tr>
+
+          {/* Ligne 2 : sous-catégories */}
+          <tr>
+            {columns.map(col => (
+              <th
+                key={col.key}
+                style={{
+                  background: col.catColor + '12',
+                  color: col.catColor,
+                  border: `1px solid ${col.catColor}33`,
+                  borderTop: 'none',
+                  padding: '4px 3px',
+                  textAlign: 'center',
+                  fontWeight: 500,
+                  fontSize: '10px',
+                  whiteSpace: 'normal',
+                  lineHeight: '1.2',
+                }}
+              >
+                {col.subName ?? ''}
               </th>
             ))}
           </tr>
@@ -100,7 +219,7 @@ export default function PlanningView({
             const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
 
             const hasEvents = monthWeeks.some(w =>
-              visibleCats.some(cat => getWeekEvents(w.events, cat.id).length > 0)
+              columns.some(col => getColEvents(w.events, col).length > 0)
             )
 
             if (filterMonth) {
@@ -111,82 +230,130 @@ export default function PlanningView({
 
             return (
               <>
+                {/* Ligne mois */}
                 <tr key={`month-${monthKey}`}>
                   <td
-                    colSpan={2 + visibleCats.length}
-                    className="bg-slate-700 text-white font-bold px-3 py-1.5 cursor-pointer select-none hover:bg-slate-600 transition-colors"
+                    colSpan={totalCols}
                     onClick={() => toggleMonth(monthKey)}
+                    style={{
+                      background: '#374151',
+                      color: 'white',
+                      fontWeight: 700,
+                      padding: '6px 12px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      letterSpacing: '0.05em',
+                      textTransform: 'uppercase',
+                      position: 'sticky',
+                      top: '54px',
+                      zIndex: 20,
+                      borderBottom: '1px solid #4b5563',
+                    }}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[12px] tracking-wide uppercase">{monthLabelCap}</span>
-                      <div className="flex items-center gap-2">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>{monthLabelCap}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {!hasEvents && !filterKeyword && (
-                          <span className="text-[10px] text-slate-400 font-normal">Aucun événement</span>
+                          <span style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 400 }}>Aucun événement</span>
                         )}
                         {isCollapsed
-                          ? <ChevronDown className="w-4 h-4 text-slate-300" />
-                          : <ChevronUp className="w-4 h-4 text-slate-300" />
+                          ? <ChevronDown style={{ width: 16, height: 16, color: '#9ca3af' }} />
+                          : <ChevronUp style={{ width: 16, height: 16, color: '#9ca3af' }} />
                         }
                       </div>
                     </div>
                   </td>
                 </tr>
 
+                {/* Lignes semaines */}
                 {!isCollapsed && monthWeeks.map(week => {
                   const isHoliday = isSchoolHoliday(week.monday, season.name)
+                  const feries = getFeriesInWeek(week.monday, feriesMap)
+                  const rowBg = isHoliday ? '#fef9c3' : 'white'
+                  const semBg = isHoliday ? '#fef08a' : '#eff6ff'
+                  const semColor = isHoliday ? '#854d0e' : '#1e40af'
+                  const wendBg = isHoliday ? '#fef9c3' : '#f8fafc'
 
                   return (
-                    <tr
-                      key={`week-${week.week_number}`}
-                      className="week-row"
-                      style={isHoliday ? { backgroundColor: '#fef9c3' } : {}}
-                    >
-                      {/* Numéro semaine */}
-                      <td
-                        className="border border-slate-200 text-center font-bold px-1 py-1 align-top"
-                        style={isHoliday
-                          ? { backgroundColor: '#fef08a', color: '#854d0e' }
-                          : { backgroundColor: '#eff6ff', color: '#1e40af' }
-                        }
-                      >
-                        <span className="text-[13px]">S{week.week_number}</span>
+                    <tr key={`week-${week.week_number}`} style={{ background: rowBg }}>
+                      {/* Colonne Semaine — sticky */}
+                      <td style={{
+                        position: 'sticky', left: 0, zIndex: 10,
+                        background: semBg, color: semColor,
+                        border: '1px solid #cbd5e1',
+                        borderRight: '2px solid #94a3b8',
+                        padding: '4px 2px',
+                        textAlign: 'center',
+                        verticalAlign: 'top',
+                        minHeight: '52px',
+                      }}>
+                        <div style={{ fontWeight: 700, fontSize: '13px' }}>S{week.week_number}</div>
                         {isHoliday && (
-                          <span className="block text-[9px] font-normal mt-0.5" style={{ color: '#854d0e' }}>
-                            Vacances
-                          </span>
+                          <div style={{ fontSize: '9px', color: '#854d0e', marginTop: '1px' }}>Vacances</div>
+                        )}
+                        {feries.length > 0 && (
+                          <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center' }}>
+                            {feries.map(f => (
+                              <span
+                                key={f.date}
+                                title={f.nom}
+                                style={{
+                                  background: '#E0F5EC',
+                                  color: '#1a6b45',
+                                  fontSize: '8px',
+                                  padding: '1px 3px',
+                                  borderRadius: '2px',
+                                  fontWeight: 600,
+                                  maxWidth: '72px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  display: 'block',
+                                }}
+                              >
+                                🟢 {f.nom}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </td>
 
-                      {/* Dates Ven/Sam/Dim */}
-                      <td
-                        className="border border-slate-200 px-1 py-1 align-top text-[10px] leading-relaxed"
-                        style={isHoliday
-                          ? { backgroundColor: '#fef9c3', color: '#854d0e' }
-                          : { backgroundColor: '#f8fafc', color: '#64748b' }
-                        }
-                      >
-                        <div>{format(week.friday,   'dd/MM')}</div>
-                        <div>{format(week.saturday, 'dd/MM')}</div>
-                        <div>{format(week.sunday,   'dd/MM')}</div>
+                      {/* Colonne W-End — sticky */}
+                      <td style={{
+                        position: 'sticky', left: '80px', zIndex: 10,
+                        background: wendBg,
+                        border: '1px solid #cbd5e1',
+                        borderRight: '2px solid #94a3b8',
+                        padding: '4px 4px',
+                        verticalAlign: 'top',
+                        color: '#64748b',
+                        fontSize: '10px',
+                        lineHeight: '1.6',
+                      }}>
+                        <div>Sam {format(week.saturday, 'dd/MM')}</div>
+                        <div>Dim {format(week.sunday, 'dd/MM')}</div>
                       </td>
 
-                      {/* Cellules événements par catégorie */}
-                      {visibleCats.map(cat => {
-                        const catEvents = getWeekEvents(week.events, cat.id)
+                      {/* Cellules événements */}
+                      {columns.map(col => {
+                        const colEvents = getColEvents(week.events, col)
                         return (
                           <td
-                            key={cat.id}
-                            className="planning-cell"
+                            key={col.key}
                             style={{
-                              borderLeftColor: cat.color + '66',
-                              backgroundColor: isHoliday ? '#fef9c3' : undefined,
+                              border: '1px solid #e2e8f0',
+                              borderLeft: `2px solid ${col.catColor}33`,
+                              padding: '3px 3px',
+                              verticalAlign: 'top',
+                              minHeight: '52px',
+                              background: isHoliday ? '#fef9c380' : 'transparent',
                             }}
                           >
-                            {catEvents.map(ev => (
+                            {colEvents.map(ev => (
                               <EventBadge
                                 key={ev.id}
                                 event={ev}
-                                categoryColor={ev.color ?? cat.color}
+                                categoryColor={ev.color ?? col.catColor}
                                 onClick={() => onEventClick(ev)}
                               />
                             ))}
@@ -213,11 +380,11 @@ function EventBadge({
   onClick: () => void
 }) {
   const statusOpacity = {
-    previsionnel: 'opacity-70',
-    confirme:     'opacity-100',
-    annule:       'opacity-50 line-through',
-    reporte:      'opacity-80',
-  }[event.status]
+    previsionnel: '0.75',
+    confirme:     '1',
+    annule:       '0.5',
+    reporte:      '0.85',
+  }[event.status] ?? '1'
 
   const subTitle = event.subcategory
     ? `${event.subcategory.name} — ${event.title}`
@@ -228,19 +395,33 @@ function EventBadge({
   return (
     <button
       onClick={onClick}
-      className={cn('event-badge w-full text-left', statusOpacity)}
-      style={{
-        backgroundColor: categoryColor + '20',
-        borderLeftColor: categoryColor,
-        color: categoryColor,
-      }}
       title={`${subTitle}${event.location ? ` · ${event.location}` : ''}`}
+      style={{
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        background: categoryColor + '18',
+        borderLeft: `2px solid ${categoryColor}`,
+        color: categoryColor,
+        padding: '2px 4px',
+        marginBottom: '2px',
+        borderRadius: '2px',
+        fontSize: '10px',
+        lineHeight: '1.3',
+        cursor: 'pointer',
+        opacity: statusOpacity,
+        overflow: 'hidden',
+        textDecoration: event.status === 'annule' ? 'line-through' : 'none',
+        border: `1px solid ${categoryColor}30`,
+        borderLeftWidth: '2px',
+        borderLeftColor: categoryColor,
+      }}
     >
-      <span className="opacity-60 font-normal">{shortDate}</span>
+      <span style={{ opacity: 0.65 }}>{shortDate}</span>
       {' '}
-      <strong>{subTitle}</strong>
+      <strong style={{ fontWeight: 500 }}>{subTitle}</strong>
       {event.location && (
-        <span className="opacity-60"> · {event.location}</span>
+        <span style={{ opacity: 0.6 }}> · {event.location}</span>
       )}
     </button>
   )

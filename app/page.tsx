@@ -1,12 +1,13 @@
 // app/page.tsx
 'use client'
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Download, FileSpreadsheet, LayoutList, Table2 } from 'lucide-react'
+import { Plus, Download, FileSpreadsheet, LayoutList, Table2, CalendarDays } from 'lucide-react'
 import Navbar from '@/components/layout/Navbar'
 import SeasonSelector from '@/components/layout/SeasonSelector'
 import FilterBar from '@/components/filters/FilterBar'
 import PlanningView from '@/components/planning/PlanningView'
 import ListView from '@/components/planning/ListView'
+import CalendarView from '@/components/planning/CalendarView'
 import EventModal from '@/components/events/EventModal'
 import EventForm from '@/components/events/EventForm'
 import {
@@ -19,7 +20,7 @@ import { exportToPDF } from '@/lib/pdf-utils'
 import type { CalendarEvent, Season } from '@/types'
 import toast from 'react-hot-toast'
 
-type View = 'planning' | 'list'
+type View = 'planning' | 'list' | 'calendar'
 
 export default function HomePage() {
   const { seasons, loading: loadingSeasons } = useSeasons()
@@ -31,11 +32,10 @@ export default function HomePage() {
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [view, setView] = useState<View>('planning')
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null | undefined>(undefined) // undefined = fermé, null = nouveau
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null | undefined>(undefined)
   const [showForm, setShowForm] = useState(false)
   const [filters, setFilters] = useState({ keyword: '', categoryId: '', month: '' })
 
-  // Saison active par défaut
   useEffect(() => {
     if (seasons.length > 0 && !activeSeason) {
       const active = seasons.find(s => s.is_active) ?? seasons[0]
@@ -51,7 +51,6 @@ export default function HomePage() {
     }
   )
 
-  // Filtrage mois côté client
   const filteredEvents = useMemo(() => {
     if (!filters.month) return events
     const m = parseInt(filters.month)
@@ -69,7 +68,6 @@ export default function HomePage() {
   }
 
   const handleDuplicate = (event: CalendarEvent) => {
-    // Préparer une copie sans id ni dates audit
     const copy = {
       ...event,
       id: undefined,
@@ -86,6 +84,12 @@ export default function HomePage() {
 
   const isLoading = loadingSeasons || loadingCats || loadingEvents
 
+  const viewButtons: { key: View; label: string; icon: typeof Table2 }[] = [
+    { key: 'planning',  label: 'Planning',   icon: Table2 },
+    { key: 'calendar',  label: 'Calendrier', icon: CalendarDays },
+    { key: 'list',      label: 'Liste',      icon: LayoutList },
+  ]
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar />
@@ -93,7 +97,6 @@ export default function HomePage() {
       {/* Toolbar */}
       <div className="bg-white border-b border-slate-200 sticky top-14 z-30">
         <div className="max-w-[1600px] mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
-          {/* Sélecteur saison */}
           {activeSeason && (
             <SeasonSelector
               seasons={seasons}
@@ -101,44 +104,31 @@ export default function HomePage() {
               onChange={setActiveSeason}
             />
           )}
-
-          {/* Séparateur */}
           <div className="w-px h-5 bg-slate-200 hidden sm:block" />
 
-          {/* Vue */}
+          {/* Sélecteur de vue */}
           <div className="flex rounded-lg border border-slate-300 overflow-hidden">
-            <button
-              onClick={() => setView('planning')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors ${
-                view === 'planning'
-                  ? 'bg-blue-700 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Table2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Planning</span>
-            </button>
-            <button
-              onClick={() => setView('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors border-l border-slate-300 ${
-                view === 'list'
-                  ? 'bg-blue-700 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <LayoutList className="w-4 h-4" />
-              <span className="hidden sm:inline">Liste</span>
-            </button>
+            {viewButtons.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setView(key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors border-r border-slate-300 last:border-r-0 ${
+                  view === key
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
           </div>
 
-          {/* Filtres */}
           <div className="flex-1 min-w-0 relative">
             <FilterBar categories={categories} filters={filters} onChange={setFilters} />
           </div>
 
-          {/* Actions */}
           <div className="flex items-center gap-2 ml-auto">
-            {/* Export */}
             <div className="relative group">
               <button className="btn-secondary text-sm">
                 <Download className="w-4 h-4" />
@@ -146,20 +136,14 @@ export default function HomePage() {
               </button>
               <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 hidden group-hover:block min-w-[160px]">
                 <button
-                  onClick={() => {
-                    if (!activeSeason) return
-                    exportToPDF(filteredEvents, categories, activeSeason)
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
+                  onClick={() => { if (!activeSeason) return; exportToPDF(filteredEvents, categories, activeSeason) }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50"
                 >
                   PDF
                 </button>
                 <button
-                  onClick={() => {
-                    if (!activeSeason) return
-                    exportToExcel(filteredEvents, categories, subcategories, activeSeason)
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2 border-t border-slate-100"
+                  onClick={() => { if (!activeSeason) return; exportToExcel(filteredEvents, categories, subcategories, activeSeason) }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
                 >
                   <FileSpreadsheet className="w-4 h-4 text-green-600" />
                   Excel
@@ -167,7 +151,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Nouvel événement (admin) */}
             {isAdmin && (
               <button
                 onClick={() => { setEditingEvent(null); setShowForm(true) }}
@@ -185,7 +168,7 @@ export default function HomePage() {
       <main className="flex-1 max-w-[1600px] mx-auto w-full px-4 py-4">
         {isLoading ? (
           <div className="flex items-center justify-center py-24 text-slate-400">
-            <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : !activeSeason ? (
           <div className="text-center py-20 text-slate-500">
@@ -200,11 +183,19 @@ export default function HomePage() {
           <PlanningView
             events={filteredEvents}
             categories={categories}
+            subcategories={subcategories}
             season={activeSeason}
             onEventClick={setSelectedEvent}
             filterCategoryId={filters.categoryId}
             filterMonth={filters.month}
             filterKeyword={filters.keyword}
+          />
+        ) : view === 'calendar' ? (
+          <CalendarView
+            events={filteredEvents}
+            categories={categories}
+            season={activeSeason}
+            onEventClick={setSelectedEvent}
           />
         ) : (
           <ListView
@@ -215,20 +206,21 @@ export default function HomePage() {
       </main>
 
       {/* Légende statuts */}
-      <footer className="bg-white border-t border-slate-200 px-4 py-2">
-        <div className="max-w-[1600px] mx-auto flex items-center gap-4 text-[11px] text-slate-500 flex-wrap">
-          <span className="font-medium text-slate-600">Statuts :</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block"/> Prévisionnel</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"/> Confirmé</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"/> Annulé</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block"/> Reporté</span>
-          <span className="ml-auto">
-            {filteredEvents.length} événement{filteredEvents.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-      </footer>
+      {view === 'planning' && (
+        <footer className="bg-white border-t border-slate-200 px-4 py-2">
+          <div className="max-w-[1600px] mx-auto flex items-center gap-4 text-[11px] text-slate-500 flex-wrap">
+            <span className="font-medium text-slate-600">Statuts :</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block"/> Prévisionnel</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"/> Confirmé</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"/> Annulé</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block"/> Reporté</span>
+            <span className="flex items-center gap-1 ml-4"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#E0F5EC'}}/> Jour férié</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#fef9c3'}}/> Vacances Zone C</span>
+            <span className="ml-auto">{filteredEvents.length} événement{filteredEvents.length !== 1 ? 's' : ''}</span>
+          </div>
+        </footer>
+      )}
 
-      {/* Modal détail */}
       <EventModal
         event={selectedEvent}
         isAdmin={isAdmin}
@@ -238,7 +230,6 @@ export default function HomePage() {
         onDuplicate={handleDuplicate}
       />
 
-      {/* Formulaire création/édition */}
       {showForm && activeSeason && (
         <EventForm
           event={editingEvent}

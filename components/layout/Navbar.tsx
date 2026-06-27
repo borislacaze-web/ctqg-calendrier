@@ -2,6 +2,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   CalendarDays, Table2,
@@ -34,9 +35,11 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 font-bold text-lg tracking-tight">
-            <CalendarDays className="w-6 h-6 text-orange-400" />
-            <span>CTQG</span>
-            <span className="hidden sm:inline text-blue-300 font-normal text-sm">Calendrier</span>
+            <Image src="/logo.png" alt="Quercy Garonne Basketball" width={36} height={36} className="rounded" />
+            <div className="hidden sm:flex flex-col leading-tight">
+              <span className="text-white text-sm font-bold">Quercy Garonne</span>
+              <span className="text-blue-300 text-[10px] font-normal">Calendrier Général</span>
+            </div>
           </Link>
 
           {/* Navigation desktop */}

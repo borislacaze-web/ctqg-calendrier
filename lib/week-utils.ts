@@ -10,7 +10,7 @@ import type { SportWeek, CalendarEvent } from '@/types'
 // ============================================================
 // VACANCES SCOLAIRES ZONE C
 // Format : { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' }
-// Générées automatiquement pour chaque saison connue. 
+// Générées automatiquement pour chaque saison connue.
 // Ajouter les saisons futures ici au fur et à mesure.
 // ============================================================
 const VACANCES_ZONE_C: Record<string, { start: string; end: string }[]> = {
@@ -37,6 +37,72 @@ const VACANCES_ZONE_C: Record<string, { start: string; end: string }[]> = {
     { start: '2028-04-15', end: '2028-05-01' }, // Printemps Zone C
     { start: '2028-07-01', end: '2028-08-31' }, // Grandes vacances été 2028
   ],
+}
+
+// ============================================================
+// JOURS FÉRIÉS FRANCE
+// ============================================================
+
+function getPaquesDate(year: number): Date {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25)
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7
+  const m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const month = Math.floor((h + l - 7 * m + 114) / 31)
+  const day = ((h + l - 7 * m + 114) % 31) + 1
+  return new Date(year, month - 1, day)
+}
+
+function addDaysToDate(d: Date, n: number): Date {
+  const r = new Date(d)
+  r.setDate(r.getDate() + n)
+  return r
+}
+
+function dateStrFr(d: Date): string {
+  return format(d, 'yyyy-MM-dd')
+}
+
+export function getJoursFeries(year: number): Record<string, string> {
+  const paques = getPaquesDate(year)
+  return {
+    [`${year}-01-01`]: 'Jour de l\'An',
+    [dateStrFr(paques)]: 'Pâques',
+    [dateStrFr(addDaysToDate(paques, 1))]: 'Lundi de Pâques',
+    [`${year}-05-01`]: 'Fête du Travail',
+    [`${year}-05-08`]: 'Victoire 1945',
+    [dateStrFr(addDaysToDate(paques, 39))]: 'Ascension',
+    [dateStrFr(addDaysToDate(paques, 50))]: 'Lundi de Pentecôte',
+    [`${year}-07-14`]: 'Fête Nationale',
+    [`${year}-08-15`]: 'Assomption',
+    [`${year}-11-01`]: 'Toussaint',
+    [`${year}-11-11`]: 'Armistice',
+    [`${year}-12-25`]: 'Noël',
+  }
+}
+
+/**
+ * Retourne les jours fériés d'une saison (juillet N → juin N+1).
+ */
+export function getJoursFeriesSaison(startYear: number): Record<string, string> {
+  return {
+    ...getJoursFeries(startYear),
+    ...getJoursFeries(startYear + 1),
+  }
+}
+
+/**
+ * Retourne les jours fériés présents dans une semaine donnée.
+ */
+export function getFeriesInWeek(monday: Date, feriesMap: Record<string, string>): { date: string; nom: string }[] {
+  const result: { date: string; nom: string }[] = []
+  for (let i = 0; i < 7; i++) {
+    const d = addDaysToDate(monday, i)
+    const ds = format(d, 'yyyy-MM-dd')
+    if (feriesMap[ds]) result.push({ date: ds, nom: feriesMap[ds] })
+  }
+  return result
 }
 
 /**
@@ -157,5 +223,4 @@ export const STATUS_COLORS: Record<string, string> = {
   confirme:     'bg-green-100 text-green-800 border-green-300',
   annule:       'bg-red-100 text-red-700 border-red-300 line-through',
   reporte:      'bg-orange-100 text-orange-700 border-orange-300',
-} 
- 
+}
