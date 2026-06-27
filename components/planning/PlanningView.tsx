@@ -268,8 +268,10 @@ export default function PlanningView({
           </colgroup>
           <thead>
             <tr style={{ height: H1 }}>
-              <th style={{ ...semThStyle(0, H1), borderBottom: 'none' }}></th>
-              <th style={{ ...wendThStyle(0, H1), borderBottom: 'none' }}></th>
+              {/* rowSpan={2} ici est SAFE : ce tableau n'a pas de scroll vertical,
+                  donc le bug de hauteur au scroll ne peut pas se produire */}
+              <th rowSpan={2} style={{ ...semThStyle(0, H1 + H2), verticalAlign: 'middle' }}>Semaine</th>
+              <th rowSpan={2} style={{ ...wendThStyle(0, H1 + H2), verticalAlign: 'middle' }}>W-End</th>
               {catGroups.map(g => (
                 <th key={g.catId} colSpan={g.span} style={{
                   ...thBase, top: 0, height: H1, padding: '0 4px',
@@ -280,8 +282,6 @@ export default function PlanningView({
               ))}
             </tr>
             <tr style={{ height: H2 }}>
-              <th style={{ ...semThStyle(H1, H2), borderTop: 'none' }}>Semaine</th>
-              <th style={{ ...wendThStyle(H1, H2), borderTop: 'none' }}>W-End</th>
               {columns.map(col => (
                 <th key={col.key} style={{
                   ...thBase, top: H1, height: H2, padding: '3px',
