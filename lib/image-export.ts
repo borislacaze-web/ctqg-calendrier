@@ -39,9 +39,18 @@ export async function exportToImage(season: Season): Promise<void> {
   fixedBody.style.overflowY       = 'visible'
   fixedBody.style.height          = 'auto'
 
-  // Laisser le navigateur recalculer le layout
+  // Ajouter temporairement un peu de marge basse aux cellules pour éviter le tronquage
+  const allCells = planningContent.querySelectorAll('td')
+  const savedPadding: string[] = []
+  allCells.forEach(td => {
+    savedPadding.push((td as HTMLElement).style.paddingBottom)
+    ;(td as HTMLElement).style.paddingBottom = '6px'
+  })
+
+  // Laisser le navigateur recalculer le layout (délai plus long pour le reflow complet)
   await new Promise(r => requestAnimationFrame(r))
   await new Promise(r => requestAnimationFrame(r))
+  await new Promise(r => setTimeout(r, 150))
 
   const fixedW  = fixedBody.scrollWidth
   const scrollW = scrollBody.scrollWidth
@@ -66,6 +75,10 @@ export async function exportToImage(season: Season): Promise<void> {
     link.href = canvas.toDataURL('image/png')
     link.click()
   } finally {
+    // Restaurer le padding des cellules
+    allCells.forEach((td, i) => {
+      ;(td as HTMLElement).style.paddingBottom = savedPadding[i]
+    })
     // ── 4. Restaurer les hauteurs de lignes ──
     allRows.forEach((tr, i) => {
       ;(tr as HTMLElement).style.height = savedRowHeights[i]

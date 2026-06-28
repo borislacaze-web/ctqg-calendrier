@@ -105,10 +105,10 @@ export default function PlanningView({
       ;(scrollRows[i] as HTMLElement).style.height = ''
     }
     for (let i = 0; i < len; i++) {
-      const h = Math.max(
+      const h = Math.ceil(Math.max(
         (fixedRows[i] as HTMLElement).getBoundingClientRect().height,
         (scrollRows[i] as HTMLElement).getBoundingClientRect().height,
-      )
+      ))
       ;(fixedRows[i] as HTMLElement).style.height = `${h}px`
       ;(scrollRows[i] as HTMLElement).style.height = `${h}px`
     }
@@ -383,7 +383,7 @@ export default function PlanningView({
     })
 
   return (
-    <div id="planning-content" style={{ width: '100%', display: 'flex', flexDirection: 'column', height: '100%', maxHeight: 'calc(100vh - 120px)' }}>
+    <div id="planning-content" style={{ width: '100%', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
 
       {duplicating && (
         <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', background: '#1e3a8a', color: 'white', padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, zIndex: 10000, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -425,7 +425,7 @@ export default function PlanningView({
                     background: blend(g.catColor, 0.15), color: g.catColor,
                     border: `1px solid ${g.catColor}88`, borderBottom: `2px solid ${g.catColor}`,
                     textAlign: 'center', verticalAlign: 'middle',
-                    fontWeight: 700, fontSize: '11px',
+                    fontWeight: 700, fontSize: '13px',
                     height: H1, padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden',
                   }}>{g.catName}</th>
                 ))}
@@ -437,7 +437,7 @@ export default function PlanningView({
                     background: blend(col.catColor, 0.07), color: col.catColor,
                     border: `1px solid ${col.catColor}55`, borderTop: 'none',
                     textAlign: 'center', verticalAlign: 'middle',
-                    fontWeight: 500, fontSize: '10px', lineHeight: '1.2', whiteSpace: 'normal',
+                    fontWeight: 500, fontSize: '12px', lineHeight: '1.2', whiteSpace: 'normal',
                     height: H2, padding: '3px', boxSizing: 'border-box',
                   }}>{col.subName ?? ''}</th>
                 ))}
