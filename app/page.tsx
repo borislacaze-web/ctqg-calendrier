@@ -152,7 +152,7 @@ export default function HomePage() {
   ]
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen landscape:max-[900px]:h-screen flex flex-col bg-slate-50">
       <Navbar />
 
       {/* Toolbar */}
@@ -241,7 +241,7 @@ export default function HomePage() {
       </div>
 
       {/* Contenu */}
-      <main className="flex-1 w-full" style={view === 'planning' ? { padding: '8px', overflowX: 'hidden' } : { maxWidth: '1600px', margin: '0 auto', padding: '16px' }}>
+      <main className="flex-1 w-full overflow-hidden" style={view === 'planning' ? { padding: '8px', overflowX: 'hidden' } : { maxWidth: '1600px', margin: '0 auto', padding: '16px' }}>
         {isLoading ? (
           <div className="flex items-center justify-center py-24 text-slate-400">
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
