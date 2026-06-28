@@ -9,7 +9,6 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Calendrier CTQG',
   description: 'Calendrier Général du Comité Territorial Quercy Garonne',
-  viewport: 'width=device-width, initial-scale=0.5, minimum-scale=0.1, maximum-scale=5, user-scalable=yes',
   icons: {
     icon: [
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
@@ -25,6 +24,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=0.7, minimum-scale=0.1, maximum-scale=10, user-scalable=yes" />
+      </head>
       <body className={inter.className}>
         {children}
         <Toaster position="top-right" />
