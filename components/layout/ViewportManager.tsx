@@ -11,12 +11,22 @@ export default function ViewportManager() {
   useEffect(() => {
     const apply = () => {
       const isMobile = window.matchMedia('(max-width: 768px)').matches
-      const content = isMobile
-        ? 'width=1600, initial-scale=0.5, minimum-scale=0.1, maximum-scale=10, user-scalable=yes'
-        : 'width=device-width, minimum-scale=0.2, maximum-scale=10, user-scalable=yes'
+      const isFirefox = /firefox|fxios/i.test(navigator.userAgent)
 
-      // Firefox mobile ne relit pas initial-scale si on modifie le meta existant.
-      // On supprime l'ancienne balise et on en recrée une neuve pour forcer le retraitement.
+      let content: string
+      if (isMobile) {
+        if (isFirefox) {
+          // Firefox ignore initial-scale avec width fixe et fait du "fit-to-width".
+          // On réduit donc la largeur du viewport pour obtenir un zoom de départ ~0.5
+          // (≈ moitié de 1600). L'utilisateur peut toujours pincer librement ensuite.
+          content = 'width=800, minimum-scale=0.1, maximum-scale=10, user-scalable=yes'
+        } else {
+          content = 'width=1600, initial-scale=0.5, minimum-scale=0.1, maximum-scale=10, user-scalable=yes'
+        }
+      } else {
+        content = 'width=device-width, minimum-scale=0.2, maximum-scale=10, user-scalable=yes'
+      }
+
       const old = document.querySelector('meta[name="viewport"]')
       if (old) old.remove()
       const meta = document.createElement('meta')
