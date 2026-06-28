@@ -104,3 +104,12 @@
 .planning-table {
   min-width: 900px;
 }
+
+/* Masquer navbar, filtres et footer en mode paysage sur mobile */
+@media (orientation: landscape) and (max-width: 900px) {
+  header,
+  .filter-bar,
+  footer {
+    display: none !important;
+  }
+}
