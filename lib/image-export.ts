@@ -10,9 +10,35 @@ export async function exportToImage(season: Season): Promise<void> {
 
   if (!planningContent || !scrollBody || !fixedBody) return
 
-  // Largeur totale réelle (zone fixe + zone scrollable)
+  // ── Sauvegarder les styles réels ──
+  const saved = {
+    contentMaxH:     planningContent.style.maxHeight,
+    contentH:        planningContent.style.height,
+    scrollOverflowX: scrollBody.style.overflowX,
+    scrollOverflowY: scrollBody.style.overflowY,
+    scrollMaxH:      scrollBody.style.maxHeight,
+    scrollH:         scrollBody.style.height,
+    fixedOverflowY:  fixedBody.style.overflowY,
+    fixedH:          fixedBody.style.height,
+  }
+
+  // ── Tout déplier sur le DOM réel (les hauteurs de lignes synchronisées RESTENT) ──
+  planningContent.style.maxHeight = 'none'
+  planningContent.style.height    = 'auto'
+  scrollBody.style.overflowX      = 'visible'
+  scrollBody.style.overflowY      = 'visible'
+  scrollBody.style.maxHeight      = 'none'
+  scrollBody.style.height         = 'auto'
+  fixedBody.style.overflowY       = 'visible'
+  fixedBody.style.height          = 'auto'
+
+  // Laisser le navigateur recalculer le layout
+  await new Promise(r => requestAnimationFrame(r))
+  await new Promise(r => requestAnimationFrame(r))
+  await new Promise(r => setTimeout(r, 100))
+
   const totalW = fixedBody.scrollWidth + scrollBody.scrollWidth
-  const totalH = planningContent.scrollHeight + 40 // marge de sécurité
+  const totalH = planningContent.scrollHeight
 
   try {
     const canvas = await html2canvas(planningContent, {
@@ -25,38 +51,6 @@ export async function exportToImage(season: Season): Promise<void> {
       windowHeight: totalH,
       scrollX: 0,
       scrollY: 0,
-      // onclone : html2canvas capture une COPIE du DOM. On modifie cette copie
-      // pour tout déplier sans toucher l'affichage réel de l'utilisateur.
-      onclone: (clonedDoc) => {
-        const content = clonedDoc.getElementById('planning-content')
-        const sBody   = clonedDoc.getElementById('scroll-body-ref')
-        const fBody   = clonedDoc.getElementById('fixed-body-ref')
-
-        if (content) {
-          content.style.maxHeight = 'none'
-          content.style.height    = 'auto'
-        }
-        if (sBody) {
-          sBody.style.overflow  = 'visible'
-          sBody.style.maxHeight = 'none'
-          sBody.style.height    = 'auto'
-        }
-        if (fBody) {
-          fBody.style.overflow  = 'visible'
-          fBody.style.maxHeight = 'none'
-          fBody.style.height    = 'auto'
-        }
-
-        // Supprimer les hauteurs de lignes forcées par la sync JS
-        // pour que chaque ligne reprenne sa hauteur naturelle (= tout le contenu visible)
-        clonedDoc.querySelectorAll('#planning-content tr').forEach(tr => {
-          ;(tr as HTMLElement).style.height = 'auto'
-        })
-        // Donner un peu d'air aux cellules
-        clonedDoc.querySelectorAll('#planning-content td').forEach(td => {
-          ;(td as HTMLElement).style.paddingBottom = '8px'
-        })
-      },
     })
 
     const link = document.createElement('a')
@@ -65,5 +59,15 @@ export async function exportToImage(season: Season): Promise<void> {
     link.click()
   } catch (e) {
     console.error('Erreur export image:', e)
+  } finally {
+    // ── Restaurer ──
+    planningContent.style.maxHeight = saved.contentMaxH
+    planningContent.style.height    = saved.contentH
+    scrollBody.style.overflowX      = saved.scrollOverflowX
+    scrollBody.style.overflowY      = saved.scrollOverflowY
+    scrollBody.style.maxHeight      = saved.scrollMaxH
+    scrollBody.style.height         = saved.scrollH
+    fixedBody.style.overflowY       = saved.fixedOverflowY
+    fixedBody.style.height          = saved.fixedH
   }
 }
