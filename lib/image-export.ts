@@ -10,7 +10,11 @@ export async function exportToImage(season: Season): Promise<void> {
 
   if (!planningContent || !scrollBody || !fixedBody) return
 
-  // ── Sauvegarder les styles réels ──
+  const fixedTable  = fixedBody.querySelector('table') as HTMLTableElement | null
+  const scrollTable = scrollBody.querySelector('table') as HTMLTableElement | null
+  if (!fixedTable || !scrollTable) return
+
+  // ── Sauvegarder les styles ──
   const saved = {
     contentMaxH:     planningContent.style.maxHeight,
     contentH:        planningContent.style.height,
@@ -22,7 +26,13 @@ export async function exportToImage(season: Season): Promise<void> {
     fixedH:          fixedBody.style.height,
   }
 
-  // ── Tout déplier sur le DOM réel (les hauteurs de lignes synchronisées RESTENT) ──
+  // Sauvegarder les hauteurs de lignes actuelles
+  const fixedRows  = Array.from(fixedTable.querySelectorAll('tr')) as HTMLElement[]
+  const scrollRows = Array.from(scrollTable.querySelectorAll('tr')) as HTMLElement[]
+  const savedFixedH  = fixedRows.map(r => r.style.height)
+  const savedScrollH = scrollRows.map(r => r.style.height)
+
+  // ── Déplier les conteneurs ──
   planningContent.style.maxHeight = 'none'
   planningContent.style.height    = 'auto'
   scrollBody.style.overflowX      = 'visible'
@@ -32,7 +42,26 @@ export async function exportToImage(season: Season): Promise<void> {
   fixedBody.style.overflowY       = 'visible'
   fixedBody.style.height          = 'auto'
 
-  // Laisser le navigateur recalculer le layout
+  // ── Recalculer les hauteurs sur le CONTENU réel (scrollHeight) ──
+  // Reset d'abord pour mesurer la hauteur naturelle complète
+  const len = Math.min(fixedRows.length, scrollRows.length)
+  for (let i = 0; i < len; i++) {
+    fixedRows[i].style.height = 'auto'
+    scrollRows[i].style.height = 'auto'
+  }
+  // Forcer reflow
+  void planningContent.offsetHeight
+  // Mesurer le contenu réel de chaque ligne (scrollHeight des cellules) et aligner sur le max
+  for (let i = 0; i < len; i++) {
+    const fCells = Array.from(fixedRows[i].querySelectorAll('td, th')) as HTMLElement[]
+    const sCells = Array.from(scrollRows[i].querySelectorAll('td, th')) as HTMLElement[]
+    let maxH = 0
+    ;[...fCells, ...sCells].forEach(c => { maxH = Math.max(maxH, c.scrollHeight) })
+    maxH = Math.ceil(maxH) + 4 // petite marge anti-tronquage
+    fixedRows[i].style.height = `${maxH}px`
+    scrollRows[i].style.height = `${maxH}px`
+  }
+
   await new Promise(r => requestAnimationFrame(r))
   await new Promise(r => requestAnimationFrame(r))
   await new Promise(r => setTimeout(r, 100))
@@ -60,7 +89,10 @@ export async function exportToImage(season: Season): Promise<void> {
   } catch (e) {
     console.error('Erreur export image:', e)
   } finally {
-    // ── Restaurer ──
+    // ── Restaurer hauteurs de lignes ──
+    fixedRows.forEach((r, i) => { r.style.height = savedFixedH[i] })
+    scrollRows.forEach((r, i) => { r.style.height = savedScrollH[i] })
+    // ── Restaurer conteneurs ──
     planningContent.style.maxHeight = saved.contentMaxH
     planningContent.style.height    = saved.contentH
     scrollBody.style.overflowX      = saved.scrollOverflowX

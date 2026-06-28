@@ -86,6 +86,8 @@ export default function PlanningView({
   const fixedBodyRef  = useRef<HTMLDivElement>(null)
   const fixedBodyTableRef = useRef<HTMLTableElement>(null)
   const scrollBodyTableRef = useRef<HTMLTableElement>(null)
+  const fixedHeaderRef = useRef<HTMLDivElement>(null)   // conteneur header gauche
+  const scrollHeaderInnerRef = useRef<HTMLTableElement>(null) // table header droite
   const scrollBodyRef = useRef<HTMLDivElement>(null)
   const scrollHeaderRef = useRef<HTMLDivElement>(null)
 
@@ -127,12 +129,29 @@ export default function PlanningView({
     return () => sb.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Aligner la hauteur du header gauche sur celle du header droit
+  // (le header droit peut grandir si un nom de sous-catégorie passe sur 2 lignes)
+  const syncHeaderHeight = useCallback(() => {
+    const leftDiv  = fixedHeaderRef.current
+    const rightTbl = scrollHeaderInnerRef.current
+    if (!leftDiv || !rightTbl) return
+    const h = Math.ceil(rightTbl.getBoundingClientRect().height)
+    const leftTable = leftDiv.querySelector('table')
+    if (leftTable) {
+      const tr = leftTable.querySelector('tr') as HTMLElement | null
+      const ths = leftTable.querySelectorAll('th')
+      if (tr) tr.style.height = `${h}px`
+      ths.forEach(th => { (th as HTMLElement).style.height = `${h}px` })
+    }
+  }, [])
+
   // Sync hauteurs après chaque render ET si le contenu change de taille
   useEffect(() => {
+    syncHeaderHeight()
     syncRowHeights()
     const scrollTable = scrollBodyTableRef.current
     if (!scrollTable) return
-    const ro = new ResizeObserver(syncRowHeights)
+    const ro = new ResizeObserver(() => { syncHeaderHeight(); syncRowHeights() })
     ro.observe(scrollTable)
     return () => ro.disconnect()
   })
@@ -383,7 +402,7 @@ export default function PlanningView({
     })
 
   return (
-    <div id="planning-content" style={{ width: '100%', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, maxHeight: 'calc(100vh - 200px)' }}>
+    <div id="planning-content" style={{ width: '100%', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
 
       {duplicating && (
         <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', background: '#1e3a8a', color: 'white', padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, zIndex: 10000, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -396,7 +415,7 @@ export default function PlanningView({
       <div style={{ display: 'flex', flexShrink: 0 }}>
 
         {/* Header fixe gauche : Semaine + W-End */}
-        <div style={{ width: fixedW, minWidth: fixedW, overflow: 'hidden', flexShrink: 0 }}>
+        <div ref={fixedHeaderRef} style={{ width: fixedW, minWidth: fixedW, overflow: 'hidden', flexShrink: 0 }}>
           <table style={{ tableLayout: 'fixed', width: fixedW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               <col style={{ width: W_SEM }} />
@@ -413,7 +432,7 @@ export default function PlanningView({
 
         {/* Header scrollable droite : catégories + sous-catégories */}
         <div id="scroll-header-ref" ref={scrollHeaderRef} style={{ overflow: 'hidden', flex: 1 }}>
-          <table style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
+          <table ref={scrollHeaderInnerRef} style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
             </colgroup>

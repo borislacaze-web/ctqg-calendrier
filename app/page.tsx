@@ -152,7 +152,7 @@ export default function HomePage() {
   ]
 
   return (
-    <div className="app-root min-h-screen flex flex-col bg-slate-50">
+    <div className="app-root h-screen flex flex-col bg-slate-50">
       <Navbar />
 
       {/* Toolbar */}
