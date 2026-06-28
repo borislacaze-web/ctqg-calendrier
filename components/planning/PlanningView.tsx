@@ -383,7 +383,7 @@ export default function PlanningView({
     })
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 120px)' }}>
+    <div id="planning-content" style={{ width: '100%', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 120px)' }}>
 
       {duplicating && (
         <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', background: '#1e3a8a', color: 'white', padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, zIndex: 10000, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -451,7 +451,7 @@ export default function PlanningView({
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* Corps fixe gauche : Semaine + W-End — scroll vertical synchronisé, jamais horizontal */}
-        <div ref={fixedBodyRef} style={{ width: fixedW, minWidth: fixedW, overflowY: 'hidden', overflowX: 'hidden', flexShrink: 0 }}>
+        <div id="fixed-body-ref" ref={fixedBodyRef} style={{ width: fixedW, minWidth: fixedW, overflowY: 'hidden', overflowX: 'hidden', flexShrink: 0 }}>
           <table ref={fixedBodyTableRef} style={{ tableLayout: 'fixed', width: fixedW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               <col style={{ width: W_SEM }} />
@@ -462,7 +462,7 @@ export default function PlanningView({
         </div>
 
         {/* Corps scrollable droite : colonnes événements */}
-        <div ref={scrollBodyRef} style={{ overflowX: 'auto', overflowY: 'auto', flex: 1 }}>
+        <div id="scroll-body-ref" ref={scrollBodyRef} style={{ overflowX: 'auto', overflowY: 'auto', flex: 1 }}>
           <table ref={scrollBodyTableRef} style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}

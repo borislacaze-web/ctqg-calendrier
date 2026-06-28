@@ -17,6 +17,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { exportToExcel } from '@/lib/excel-utils'
 import { exportToPDF } from '@/lib/pdf-utils'
+import { exportToImage } from '@/lib/image-export'
 import { addDays, format } from 'date-fns'
 import type { CalendarEvent, Season } from '@/types'
 import toast from 'react-hot-toast'
@@ -35,6 +36,7 @@ export default function HomePage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null | undefined>(undefined)
   const [showForm, setShowForm] = useState(false)
+  const [exportingImage, setExportingImage] = useState(false)
   const [filters, setFilters] = useState({ keyword: '', categoryId: '', month: '' })
 
   useEffect(() => {
@@ -206,6 +208,21 @@ export default function HomePage() {
                 >
                   <FileSpreadsheet className="w-4 h-4 text-green-600" />
                   Excel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!activeSeason || exportingImage) return
+                    setExportingImage(true)
+                    try { await exportToImage(activeSeason) }
+                    finally { setExportingImage(false) }
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
+                  disabled={exportingImage}
+                >
+                  {exportingImage
+                    ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin inline-block" /> Génération…</>
+                    : <><span className="text-base">🖼</span> Image</>
+                  }
                 </button>
               </div>
             </div>

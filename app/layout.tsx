@@ -9,6 +9,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Calendrier CTQG',
   description: 'Calendrier Général du Comité Territorial Quercy Garonne',
+  viewport: 'width=device-width, initial-scale=1, user-scalable=yes, minimum-scale=0.5, maximum-scale=5',
   icons: {
     icon: [
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
