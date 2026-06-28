@@ -1,5 +1,5 @@
 // app/layout.tsx
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
 import './globals.css'
@@ -21,12 +21,18 @@ export const metadata: Metadata = {
   },
 }
 
+// Export Viewport officiel Next.js 14 — autorise le pinch-to-zoom sur mobile
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  minimumScale: 0.1,
+  maximumScale: 10,
+  userScalable: true,
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <head>
-        <meta name="viewport" content="width=1600, initial-scale=0.25, minimum-scale=0.1, maximum-scale=10, user-scalable=yes" />
-      </head>
       <body className={inter.className}>
         {children}
         <Toaster position="top-right" />

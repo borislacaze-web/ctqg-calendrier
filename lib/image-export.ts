@@ -10,86 +10,60 @@ export async function exportToImage(season: Season): Promise<void> {
 
   if (!planningContent || !scrollBody || !fixedBody) return
 
-  // ── 1. Mémoriser les styles actuels ──
-  const saved = {
-    contentMaxH:     planningContent.style.maxHeight,
-    contentH:        planningContent.style.height,
-    scrollOverflowX: scrollBody.style.overflowX,
-    scrollOverflowY: scrollBody.style.overflowY,
-    scrollMaxH:      scrollBody.style.maxHeight,
-    fixedOverflowY:  fixedBody.style.overflowY,
-    fixedH:          fixedBody.style.height,
-  }
-
-  // ── 2. Supprimer les hauteurs forcées sur toutes les lignes ──
-  // (la sync JS force des height px qui peuvent couper le contenu)
-  const allRows = planningContent.querySelectorAll('tr')
-  const savedRowHeights: string[] = []
-  allRows.forEach(tr => {
-    savedRowHeights.push((tr as HTMLElement).style.height)
-    ;(tr as HTMLElement).style.height = ''
-  })
-
-  // ── 3. Expand les conteneurs overflow ──
-  planningContent.style.maxHeight = 'none'
-  planningContent.style.height    = 'auto'
-  scrollBody.style.overflowX      = 'visible'
-  scrollBody.style.overflowY      = 'visible'
-  scrollBody.style.maxHeight      = 'none'
-  fixedBody.style.overflowY       = 'visible'
-  fixedBody.style.height          = 'auto'
-
-  // Ajouter temporairement un peu de marge basse aux cellules pour éviter le tronquage
-  const allCells = planningContent.querySelectorAll('td')
-  const savedPadding: string[] = []
-  allCells.forEach(td => {
-    savedPadding.push((td as HTMLElement).style.paddingBottom)
-    ;(td as HTMLElement).style.paddingBottom = '6px'
-  })
-
-  // Laisser le navigateur recalculer le layout (délai plus long pour le reflow complet)
-  await new Promise(r => requestAnimationFrame(r))
-  await new Promise(r => requestAnimationFrame(r))
-  await new Promise(r => setTimeout(r, 150))
-
-  const fixedW  = fixedBody.scrollWidth
-  const scrollW = scrollBody.scrollWidth
-  const totalW  = fixedW + scrollW
-  const totalH  = planningContent.scrollHeight
+  // Largeur totale réelle (zone fixe + zone scrollable)
+  const totalW = fixedBody.scrollWidth + scrollBody.scrollWidth
+  const totalH = planningContent.scrollHeight + 40 // marge de sécurité
 
   try {
     const canvas = await html2canvas(planningContent, {
       scale: 2,
       useCORS: true,
       backgroundColor: '#ffffff',
-      scrollX: 0,
-      scrollY: -window.scrollY,
-      windowWidth:  totalW,
-      windowHeight: totalH,
       width:  totalW,
       height: totalH,
+      windowWidth:  totalW,
+      windowHeight: totalH,
+      scrollX: 0,
+      scrollY: 0,
+      // onclone : html2canvas capture une COPIE du DOM. On modifie cette copie
+      // pour tout déplier sans toucher l'affichage réel de l'utilisateur.
+      onclone: (clonedDoc) => {
+        const content = clonedDoc.getElementById('planning-content')
+        const sBody   = clonedDoc.getElementById('scroll-body-ref')
+        const fBody   = clonedDoc.getElementById('fixed-body-ref')
+
+        if (content) {
+          content.style.maxHeight = 'none'
+          content.style.height    = 'auto'
+        }
+        if (sBody) {
+          sBody.style.overflow  = 'visible'
+          sBody.style.maxHeight = 'none'
+          sBody.style.height    = 'auto'
+        }
+        if (fBody) {
+          fBody.style.overflow  = 'visible'
+          fBody.style.maxHeight = 'none'
+          fBody.style.height    = 'auto'
+        }
+
+        // Supprimer les hauteurs de lignes forcées par la sync JS
+        // pour que chaque ligne reprenne sa hauteur naturelle (= tout le contenu visible)
+        clonedDoc.querySelectorAll('#planning-content tr').forEach(tr => {
+          ;(tr as HTMLElement).style.height = 'auto'
+        })
+        // Donner un peu d'air aux cellules
+        clonedDoc.querySelectorAll('#planning-content td').forEach(td => {
+          ;(td as HTMLElement).style.paddingBottom = '8px'
+        })
+      },
     })
 
     const link = document.createElement('a')
     link.download = `Calendrier_CTQG_${season.name.replace('/', '-')}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
-  } finally {
-    // Restaurer le padding des cellules
-    allCells.forEach((td, i) => {
-      ;(td as HTMLElement).style.paddingBottom = savedPadding[i]
-    })
-    // ── 4. Restaurer les hauteurs de lignes ──
-    allRows.forEach((tr, i) => {
-      ;(tr as HTMLElement).style.height = savedRowHeights[i]
-    })
-    // ── 5. Restaurer les conteneurs ──
-    planningContent.style.maxHeight = saved.contentMaxH
-    planningContent.style.height    = saved.contentH
-    scrollBody.style.overflowX      = saved.scrollOverflowX
-    scrollBody.style.overflowY      = saved.scrollOverflowY
-    scrollBody.style.maxHeight      = saved.scrollMaxH
-    fixedBody.style.overflowY       = saved.fixedOverflowY
-    fixedBody.style.height          = saved.fixedH
+  } catch (e) {
+    console.error('Erreur export image:', e)
   }
 }

@@ -86,11 +86,21 @@ export default function PlanningView({
   const fixedBodyRef  = useRef<HTMLDivElement>(null)
   const fixedBodyTableRef = useRef<HTMLTableElement>(null)
   const scrollBodyTableRef = useRef<HTMLTableElement>(null)
+  const fixedHeaderTrRef = useRef<HTMLTableRowElement>(null)
+  const scrollHeaderTheadRef = useRef<HTMLTableSectionElement>(null)
   const scrollBodyRef = useRef<HTMLDivElement>(null)
   const scrollHeaderRef = useRef<HTMLDivElement>(null)
 
   // Synchronisation des hauteurs de lignes entre colonne fixe et zone scrollable
   const syncRowHeights = useCallback(() => {
+    // D'abord aligner la hauteur du header gauche sur le header droit
+    const fixedHeaderTr = fixedHeaderTrRef.current
+    const scrollThead   = scrollHeaderTheadRef.current
+    if (fixedHeaderTr && scrollThead) {
+      const targetH = Math.ceil(scrollThead.getBoundingClientRect().height)
+      fixedHeaderTr.style.height = `${targetH}px`
+    }
+
     const fixedTable  = fixedBodyTableRef.current
     const scrollTable = scrollBodyTableRef.current
     if (!fixedTable || !scrollTable) return
@@ -403,9 +413,9 @@ export default function PlanningView({
               <col style={{ width: W_WEND }} />
             </colgroup>
             <thead>
-              <tr style={{ height: H1 + H2 }}>
-                <th style={{ background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '11px', height: H1+H2 }}>Semaine</th>
-                <th style={{ background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', borderLeft: '2px solid #60a5fa', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '11px', height: H1+H2 }}>W-End</th>
+              <tr ref={fixedHeaderTrRef} style={{ height: H1 + H2 }}>
+                <th style={{ background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '13px' }}>Semaine</th>
+                <th style={{ background: '#1e3a8a', color: 'white', border: '1px solid #2d4fb5', borderLeft: '2px solid #60a5fa', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, fontSize: '13px' }}>W-End</th>
               </tr>
             </thead>
           </table>
@@ -417,7 +427,7 @@ export default function PlanningView({
             <colgroup>
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
             </colgroup>
-            <thead>
+            <thead ref={scrollHeaderTheadRef}>
               <tr style={{ height: H1 }}>
                 {catGroups.map(g => (
                   <th key={g.catId} colSpan={g.span} style={{
