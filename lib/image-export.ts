@@ -68,7 +68,7 @@ export async function exportToImage(season: Season): Promise<void> {
   // Largeur = scrollWidth des tables internes (capture toute la largeur, même hors viewport)
   const fixedTableW  = fixedTbl  ? fixedTbl.scrollWidth  : fixedBody.scrollWidth
   const scrollTableW = scrollTbl ? scrollTbl.scrollWidth : scrollBody.scrollWidth
-  const totalW = Math.ceil(fixedTableW + scrollTableW) + 20  // +20 marge pour ne pas couper la dernière colonne
+  const totalW = Math.ceil(fixedTableW + scrollTableW) + 2  // +2 marge minimale anti-crop
   const totalH = planningContent.scrollHeight
 
   try {
