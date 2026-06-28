@@ -18,7 +18,7 @@ export default function ViewportManager() {
         // Largeur fixe > écran → permet le dézoom libre par pinch
         meta.setAttribute(
           'content',
-          'width=1600, initial-scale=0.25, minimum-scale=0.1, maximum-scale=10, user-scalable=yes'
+          'width=1600, initial-scale=0.5, minimum-scale=0.1, maximum-scale=10, user-scalable=yes'
         )
       } else {
         meta.setAttribute(
