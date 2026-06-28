@@ -9,23 +9,20 @@ import { useEffect } from 'react'
  */
 export default function ViewportManager() {
   useEffect(() => {
-    const meta = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null
-    if (!meta) return
-
     const apply = () => {
       const isMobile = window.matchMedia('(max-width: 768px)').matches
-      if (isMobile) {
-        // Largeur fixe > écran → permet le dézoom libre par pinch
-        meta.setAttribute(
-          'content',
-          'width=1600, initial-scale=0.5, minimum-scale=0.1, maximum-scale=10, user-scalable=yes'
-        )
-      } else {
-        meta.setAttribute(
-          'content',
-          'width=device-width, minimum-scale=0.2, maximum-scale=10, user-scalable=yes'
-        )
-      }
+      const content = isMobile
+        ? 'width=1600, initial-scale=0.5, minimum-scale=0.1, maximum-scale=10, user-scalable=yes'
+        : 'width=device-width, minimum-scale=0.2, maximum-scale=10, user-scalable=yes'
+
+      // Firefox mobile ne relit pas initial-scale si on modifie le meta existant.
+      // On supprime l'ancienne balise et on en recrée une neuve pour forcer le retraitement.
+      const old = document.querySelector('meta[name="viewport"]')
+      if (old) old.remove()
+      const meta = document.createElement('meta')
+      meta.name = 'viewport'
+      meta.content = content
+      document.head.appendChild(meta)
     }
 
     apply()
