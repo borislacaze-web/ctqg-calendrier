@@ -65,10 +65,10 @@ export async function exportToImage(season: Season): Promise<void> {
   await new Promise(r => requestAnimationFrame(r))
   await new Promise(r => setTimeout(r, 200))
 
-  // Largeur = tables internes (fiable) ; hauteur = contenu total
-  const fixedTableW  = fixedTbl  ? fixedTbl.getBoundingClientRect().width  : fixedBody.scrollWidth
-  const scrollTableW = scrollTbl ? scrollTbl.getBoundingClientRect().width : scrollBody.scrollWidth
-  const totalW = Math.ceil(fixedTableW + scrollTableW) + 4
+  // Largeur = scrollWidth des tables internes (capture toute la largeur, même hors viewport)
+  const fixedTableW  = fixedTbl  ? fixedTbl.scrollWidth  : fixedBody.scrollWidth
+  const scrollTableW = scrollTbl ? scrollTbl.scrollWidth : scrollBody.scrollWidth
+  const totalW = Math.ceil(fixedTableW + scrollTableW) + 20  // +20 marge pour ne pas couper la dernière colonne
   const totalH = planningContent.scrollHeight
 
   try {
