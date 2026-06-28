@@ -19,7 +19,12 @@ const config: Config = {
       }
     },
   },
-  plugins: [],
+  plugins: [
+    // Variant landscape pour masquer des éléments en mode paysage mobile
+    function({ addVariant }: { addVariant: (name: string, definition: string) => void }) {
+      addVariant('landscape', '@media (orientation: landscape)')
+    }
+  ],
 }
 
 export default config
