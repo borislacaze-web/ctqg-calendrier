@@ -24,8 +24,7 @@ export const metadata: Metadata = {
 // Export Viewport officiel Next.js 14 — autorise le pinch-to-zoom sur mobile
 export const viewport: Viewport = {
   width: 'device-width',
-  initialScale: 1,
-  minimumScale: 0.1,
+  minimumScale: 0.2,
   maximumScale: 10,
   userScalable: true,
 }
