@@ -42,10 +42,22 @@ export async function exportToImage(season: Season): Promise<void> {
   const savedFixedH  = fixedRows.map(r => r.style.height)
   const savedScrollH = scrollRows.map(r => r.style.height)
 
-  // Retirer le overflow:hidden des badges (sinon le texte multi-lignes est coupé)
+  // Forcer les badges (boutons) à afficher tout leur contenu sans coupure
   const badges = Array.from(planningContent.querySelectorAll('button')) as HTMLElement[]
-  const savedBadgeOverflow = badges.map(b => b.style.overflow)
-  badges.forEach(b => { b.style.overflow = 'visible' })
+  const savedBadge = badges.map(b => ({
+    overflow:   b.style.overflow,
+    height:     b.style.height,
+    maxHeight:  b.style.maxHeight,
+    whiteSpace: b.style.whiteSpace,
+    minHeight:  b.style.minHeight,
+  }))
+  badges.forEach(b => {
+    b.style.overflow   = 'visible'
+    b.style.height     = 'auto'
+    b.style.maxHeight  = 'none'
+    b.style.minHeight  = 'auto'
+    b.style.whiteSpace = 'normal'
+  })
 
   // 1. Reset à auto pour mesurer la hauteur naturelle
   fixedRows.forEach(r => { r.style.height = 'auto' })
@@ -73,8 +85,8 @@ export async function exportToImage(season: Season): Promise<void> {
   await new Promise(r => requestAnimationFrame(r))
   await new Promise(r => setTimeout(r, 250))
 
-  // Mesurer APRÈS stabilisation
-  const totalW = Math.max(planningContent.scrollWidth, fixedBody.scrollWidth + scrollBody.scrollWidth)
+  // Mesurer APRÈS stabilisation — largeur = somme exacte des deux zones
+  const totalW = fixedBody.scrollWidth + scrollBody.scrollWidth
   const totalH = planningContent.scrollHeight
 
   try {
@@ -97,7 +109,13 @@ export async function exportToImage(season: Season): Promise<void> {
   } catch (e) {
     console.error('Erreur export image:', e)
   } finally {
-    badges.forEach((b, i) => { b.style.overflow = savedBadgeOverflow[i] })
+    badges.forEach((b, i) => {
+      b.style.overflow   = savedBadge[i].overflow
+      b.style.height     = savedBadge[i].height
+      b.style.maxHeight  = savedBadge[i].maxHeight
+      b.style.minHeight  = savedBadge[i].minHeight
+      b.style.whiteSpace = savedBadge[i].whiteSpace
+    })
     fixedRows.forEach((r, i) => { r.style.height = savedFixedH[i] })
     scrollRows.forEach((r, i) => { r.style.height = savedScrollH[i] })
     planningContent.style.maxHeight = saved.contentMaxH
