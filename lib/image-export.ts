@@ -43,6 +43,7 @@ export async function exportToImage(season: Season): Promise<void> {
   const savedScrollH = scrollRows.map(r => r.style.height)
 
   // Forcer les badges (boutons) à afficher tout leur contenu sans coupure
+  // + corriger le décalage vertical du texte (bug html2canvas avec line-height en ratio)
   const badges = Array.from(planningContent.querySelectorAll('button')) as HTMLElement[]
   const savedBadge = badges.map(b => ({
     overflow:   b.style.overflow,
@@ -50,6 +51,8 @@ export async function exportToImage(season: Season): Promise<void> {
     maxHeight:  b.style.maxHeight,
     whiteSpace: b.style.whiteSpace,
     minHeight:  b.style.minHeight,
+    lineHeight: b.style.lineHeight,
+    display:    b.style.display,
   }))
   badges.forEach(b => {
     b.style.overflow   = 'visible'
@@ -57,7 +60,14 @@ export async function exportToImage(season: Season): Promise<void> {
     b.style.maxHeight  = 'none'
     b.style.minHeight  = 'auto'
     b.style.whiteSpace = 'normal'
+    // line-height explicite en px (html2canvas gère mal les ratios → texte décalé)
+    b.style.lineHeight = '13px'
   })
+
+  // Même correction sur tous les spans/strong à l'intérieur des badges
+  const badgeTexts = Array.from(planningContent.querySelectorAll('button span, button strong')) as HTMLElement[]
+  const savedTextLH = badgeTexts.map(t => t.style.lineHeight)
+  badgeTexts.forEach(t => { t.style.lineHeight = '13px' })
 
   // 1. Reset à auto pour mesurer la hauteur naturelle
   fixedRows.forEach(r => { r.style.height = 'auto' })
@@ -71,9 +81,7 @@ export async function exportToImage(season: Season): Promise<void> {
     heights[i] = Math.ceil(Math.max(
       fixedRows[i].getBoundingClientRect().height,
       scrollRows[i].getBoundingClientRect().height,
-      fixedRows[i].scrollHeight,
-      scrollRows[i].scrollHeight,
-    )) + 10  // marge anti-tronquage
+    ))
   }
   for (let i = 0; i < len; i++) {
     fixedRows[i].style.height  = `${heights[i]}px`
@@ -85,8 +93,11 @@ export async function exportToImage(season: Season): Promise<void> {
   await new Promise(r => requestAnimationFrame(r))
   await new Promise(r => setTimeout(r, 250))
 
-  // Mesurer APRÈS stabilisation — largeur = somme exacte des deux zones
-  const totalW = fixedBody.scrollWidth + scrollBody.scrollWidth
+  // Mesurer APRÈS stabilisation
+  // Largeur = largeur des tables internes (plus fiable que scrollWidth des conteneurs)
+  const fixedTableW  = fixedTbl  ? fixedTbl.getBoundingClientRect().width  : fixedBody.scrollWidth
+  const scrollTableW = scrollTbl ? scrollTbl.getBoundingClientRect().width : scrollBody.scrollWidth
+  const totalW = Math.ceil(fixedTableW + scrollTableW) + 4 // +4 marge bordure droite
   const totalH = planningContent.scrollHeight
 
   try {
@@ -115,7 +126,10 @@ export async function exportToImage(season: Season): Promise<void> {
       b.style.maxHeight  = savedBadge[i].maxHeight
       b.style.minHeight  = savedBadge[i].minHeight
       b.style.whiteSpace = savedBadge[i].whiteSpace
+      b.style.lineHeight = savedBadge[i].lineHeight
+      b.style.display    = savedBadge[i].display
     })
+    badgeTexts.forEach((t, i) => { t.style.lineHeight = savedTextLH[i] })
     fixedRows.forEach((r, i) => { r.style.height = savedFixedH[i] })
     scrollRows.forEach((r, i) => { r.style.height = savedScrollH[i] })
     planningContent.style.maxHeight = saved.contentMaxH
