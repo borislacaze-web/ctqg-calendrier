@@ -112,4 +112,21 @@
   footer {
     display: none !important;
   }
+
+  /* Le planning prend toute la hauteur de l'écran */
+  .app-root {
+    height: 100vh !important;
+    min-height: 100vh !important;
+    overflow: hidden;
+  }
+  .app-main {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  /* Conteneur du planning : remplit tout l'espace, pas de maxHeight résiduel */
+  #planning-content {
+    height: 100% !important;
+    max-height: 100% !important;
+  }
 }

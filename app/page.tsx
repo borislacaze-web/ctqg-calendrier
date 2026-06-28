@@ -152,7 +152,7 @@ export default function HomePage() {
   ]
 
   return (
-    <div className="min-h-screen landscape:max-[900px]:h-screen flex flex-col bg-slate-50">
+    <div className="app-root min-h-screen flex flex-col bg-slate-50">
       <Navbar />
 
       {/* Toolbar */}
@@ -241,7 +241,7 @@ export default function HomePage() {
       </div>
 
       {/* Contenu */}
-      <main className="flex-1 w-full overflow-hidden" style={view === 'planning' ? { padding: '8px', overflowX: 'hidden' } : { maxWidth: '1600px', margin: '0 auto', padding: '16px' }}>
+      <main className="app-main flex-1 w-full overflow-hidden" style={view === 'planning' ? { padding: '8px', overflowX: 'hidden', display: 'flex', flexDirection: 'column' } : { maxWidth: '1600px', margin: '0 auto', padding: '16px' }}>
         {isLoading ? (
           <div className="flex items-center justify-center py-24 text-slate-400">
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -256,7 +256,7 @@ export default function HomePage() {
             )}
           </div>
         ) : view === 'planning' ? (
-          <PlanningView
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}><PlanningView
             events={filteredEvents}
             categories={categories}
             subcategories={subcategories}
@@ -268,7 +268,7 @@ export default function HomePage() {
             filterCategoryId={filters.categoryId}
             filterMonth={filters.month}
             filterKeyword={filters.keyword}
-          />
+          /></div>
         ) : view === 'calendar' ? (
           <CalendarView
             events={filteredEvents}
