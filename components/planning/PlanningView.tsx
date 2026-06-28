@@ -412,7 +412,7 @@ export default function PlanningView({
         </div>
 
         {/* Header scrollable droite : catégories + sous-catégories */}
-        <div ref={scrollHeaderRef} style={{ overflow: 'hidden', flex: 1 }}>
+        <div id="scroll-header-ref" ref={scrollHeaderRef} style={{ overflow: 'hidden', flex: 1 }}>
           <table style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
