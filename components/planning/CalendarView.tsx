@@ -22,11 +22,11 @@ export default function CalendarView({ events, categories, season, onEventClick 
   const startYear = parseInt(season.name.split('/')[0])
   const [currentDate, setCurrentDate] = useState(() => {
     const now = new Date()
-    // Si on est dans la saison, afficher le mois courant, sinon juillet de la saison
-    const seasonStart = parseISO(season.start_date)
-    const seasonEnd = parseISO(season.end_date)
-    if (now >= seasonStart && now <= seasonEnd) return now
-    return seasonStart
+    // 1er septembre de l'année de début de saison
+    const septFirst = new Date(now.getFullYear(), 8, 1) // mois 8 = septembre
+    // Avant le 1er septembre → afficher septembre ; à partir du 1er sept → mois en cours
+    if (now < septFirst) return septFirst
+    return now
   })
 
   const feriesMap = useMemo(() => getJoursFeriesSaison(startYear), [startYear])
