@@ -1,7 +1,7 @@
 // app/page.tsx
 'use client'
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Download, FileSpreadsheet, LayoutList, Table2, CalendarDays } from 'lucide-react'
+import { Plus, Download, FileSpreadsheet, FileText, LayoutList, Table2, CalendarDays } from 'lucide-react'
 import Navbar from '@/components/layout/Navbar'
 import SeasonSelector from '@/components/layout/SeasonSelector'
 import FilterBar from '@/components/filters/FilterBar'
@@ -195,35 +195,40 @@ export default function HomePage() {
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Exporter</span>
               </button>
-              <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 hidden group-hover:block min-w-[160px]">
-                <button
-                  onClick={async () => { if (!activeSeason) return; await exportToPDF(filteredEvents, categories, activeSeason) }}
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50"
-                >
-                  PDF
-                </button>
-                <button
-                  onClick={() => { if (!activeSeason) return; exportToExcel(filteredEvents, categories, subcategories, activeSeason) }}
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                  Excel
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!activeSeason || exportingImage) return
-                    setExportingImage(true)
-                    try { await exportToImage(activeSeason) }
-                    finally { setExportingImage(false) }
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
-                  disabled={exportingImage}
-                >
-                  {exportingImage
-                    ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin inline-block" /> Génération…</>
-                    : <><span className="text-base">🖼</span> Image</>
-                  }
-                </button>
+              {/* pt-1 au lieu de mt-1 : le padding fait partie de la zone hover,
+                  donc plus de "trou" entre le bouton et le menu où le survol se perd */}
+              <div className="absolute right-0 top-full pt-1 z-10 hidden group-hover:block min-w-[160px]">
+                <div className="bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                  <button
+                    onClick={async () => { if (!activeSeason) return; await exportToPDF(filteredEvents, categories, activeSeason) }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <FileText className="w-4 h-4 text-red-600" />
+                    PDF
+                  </button>
+                  <button
+                    onClick={() => { if (!activeSeason) return; exportToExcel(filteredEvents, categories, subcategories, activeSeason) }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                    Excel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!activeSeason || exportingImage) return
+                      setExportingImage(true)
+                      try { await exportToImage(activeSeason) }
+                      finally { setExportingImage(false) }
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
+                    disabled={exportingImage}
+                  >
+                    {exportingImage
+                      ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin inline-block" /> Génération…</>
+                      : <><span className="text-base">🖼</span> Image</>
+                    }
+                  </button>
+                </div>
               </div>
             </div>
 
