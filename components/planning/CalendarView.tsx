@@ -71,7 +71,7 @@ export default function CalendarView({ events, categories, season, onEventClick 
         >
           <ChevronLeft style={{ width: 16, height: 16 }} />
         </button>
-        <span style={{ fontSize: '16px', fontWeight: 500, minWidth: '180px', textAlign: 'center', color: 'var(--text-primary)' }}>
+        <span style={{ fontSize: '19px', fontWeight: 600, minWidth: '190px', textAlign: 'center', color: 'var(--text-primary)' }}>
           {monthLabelCap}
         </span>
         <button
@@ -90,33 +90,33 @@ export default function CalendarView({ events, categories, season, onEventClick 
 
       {/* Légende */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-          <div style={{ width: 12, height: 12, borderRadius: 2, background: '#E0F5EC', border: '0.5px solid #1a6b4540' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+          <div style={{ width: 13, height: 13, borderRadius: 2, background: '#E0F5EC', border: '1px solid #1a6b4560' }} />
           Jour férié
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-          <div style={{ width: 12, height: 12, borderRadius: 2, background: '#FFFBE6', border: '0.5px solid #7a620040' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+          <div style={{ width: 13, height: 13, borderRadius: 2, background: '#fef08a', border: '1px solid #854d0e60' }} />
           Vacances Zone C
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-          <div style={{ width: 12, height: 12, borderRadius: 2, background: '#F0F0F0', border: '0.5px solid #88888840' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+          <div style={{ width: 13, height: 13, borderRadius: 2, background: '#eef2f7', border: '1px solid #94a3b860' }} />
           Week-end
         </div>
       </div>
 
       {/* Grille */}
-      <div style={{ border: '0.5px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+      <div style={{ border: '1px solid #cbd5e1', borderRadius: '10px', overflow: 'hidden' }}>
         {/* En-tête jours */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: '#1e3a8a' }}>
           {JOURS.map(j => (
-            <div key={j} style={{ padding: '6px 4px', textAlign: 'center', fontSize: '11px', fontWeight: 600, color: 'white' }}>
+            <div key={j} style={{ padding: '9px 4px', textAlign: 'center', fontSize: '14px', fontWeight: 700, color: 'white', borderRight: '1px solid #2d4fb5' }}>
               {j}
             </div>
           ))}
         </div>
 
         {/* Jours */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: 'minmax(80px, auto)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: 'minmax(96px, auto)' }}>
           {days.map((day, idx) => {
             const ds = format(day, 'yyyy-MM-dd')
             const ferie = feriesMap[ds]
@@ -129,33 +129,37 @@ export default function CalendarView({ events, categories, season, onEventClick 
             const isCurrentMonth = isSameMonth(day, currentDate)
             const todayDay = isToday(day)
             const dayEvents = getEventsForDay(day)
+            // Premier jour de la semaine (lundi) → on y affiche le badge "Vacances"
+            const isMonday = dow === 1
 
+            // Couleurs de fond : vacances en jaune franc (comme la vue planning)
             let bg = 'white'
             if (ferie) bg = '#E0F5EC'
-            else if (isVac) bg = '#FFFBE6'
-            else if (isWeekend) bg = '#F0F0F0'
+            else if (isVac) bg = '#fef9c3'
+            else if (isWeekend) bg = '#eef2f7'
 
             return (
               <div
                 key={ds}
                 style={{
                   background: bg,
-                  border: '0.5px solid #e2e8f0',
-                  padding: '4px',
-                  opacity: isCurrentMonth ? 1 : 0.4,
-                  minHeight: '80px',
+                  border: '1px solid #d8dee9',
+                  padding: '5px',
+                  opacity: isCurrentMonth ? 1 : 0.45,
+                  minHeight: '96px',
                 }}
               >
-                {/* Numéro du jour */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                {/* Numéro du jour + badges */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', gap: '3px' }}>
                   <span style={{
-                    fontSize: '12px',
-                    fontWeight: todayDay ? 700 : 400,
-                    color: todayDay ? 'white' : isWeekend ? '#64748b' : 'var(--text-primary)',
+                    fontSize: '15px',
+                    fontWeight: todayDay ? 700 : 500,
+                    color: todayDay ? 'white' : isWeekend ? '#475569' : 'var(--text-primary)',
                     background: todayDay ? '#1e3a8a' : 'transparent',
                     borderRadius: '50%',
-                    width: todayDay ? '20px' : 'auto',
-                    height: todayDay ? '20px' : 'auto',
+                    width: todayDay ? '24px' : 'auto',
+                    height: todayDay ? '24px' : 'auto',
+                    minWidth: todayDay ? '24px' : 'auto',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -164,13 +168,13 @@ export default function CalendarView({ events, categories, season, onEventClick 
                   </span>
                   {ferie && (
                     <span style={{
-                      fontSize: '8px',
+                      fontSize: '10px',
                       background: '#E0F5EC',
                       color: '#1a6b45',
-                      padding: '1px 3px',
-                      borderRadius: '2px',
+                      padding: '1px 4px',
+                      borderRadius: '3px',
                       fontWeight: 600,
-                      maxWidth: '70px',
+                      maxWidth: '80px',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -180,8 +184,20 @@ export default function CalendarView({ events, categories, season, onEventClick 
                   )}
                 </div>
 
+                {/* Badge Vacances (uniquement le lundi de chaque semaine de vacances) */}
+                {isVac && isMonday && !ferie && (
+                  <div style={{
+                    fontSize: '10px', fontWeight: 700, color: '#854d0e',
+                    background: '#fef08a', border: '1px solid #facc15',
+                    borderRadius: '3px', padding: '1px 5px', marginBottom: '3px',
+                    display: 'inline-block',
+                  }}>
+                    🏖 Vacances
+                  </div>
+                )}
+
                 {/* Événements */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   {dayEvents.slice(0, 3).map(ev => {
                     const cat = catMap.get(ev.category_id)
                     const color = ev.color ?? cat?.color ?? '#3B82F6'
@@ -194,20 +210,20 @@ export default function CalendarView({ events, categories, season, onEventClick 
                           display: 'block',
                           width: '100%',
                           textAlign: 'left',
-                          background: color + '20',
-                          borderLeft: `2px solid ${color}`,
+                          background: color + '22',
+                          borderLeft: `3px solid ${color}`,
                           color: color,
-                          padding: '1px 3px',
-                          borderRadius: '2px',
-                          fontSize: '9px',
-                          lineHeight: '1.3',
+                          padding: '2px 5px',
+                          borderRadius: '3px',
+                          fontSize: '11px',
+                          lineHeight: '1.35',
                           cursor: 'pointer',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
-                          fontWeight: 500,
-                          border: `1px solid ${color}25`,
-                          borderLeftWidth: '2px',
+                          fontWeight: 600,
+                          border: `1px solid ${color}30`,
+                          borderLeftWidth: '3px',
                           borderLeftColor: color,
                         }}
                       >
@@ -216,7 +232,7 @@ export default function CalendarView({ events, categories, season, onEventClick 
                     )
                   })}
                   {dayEvents.length > 3 && (
-                    <span style={{ fontSize: '9px', color: 'var(--text-muted)', paddingLeft: '2px' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', paddingLeft: '2px', fontWeight: 500 }}>
                       +{dayEvents.length - 3} autres
                     </span>
                   )}
