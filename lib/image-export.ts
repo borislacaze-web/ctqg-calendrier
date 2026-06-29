@@ -1,5 +1,16 @@
 // lib/image-export.ts
 import type { Season } from '@/types'
+import { getLogoBase64 } from './logo-utils'
+
+// Charge une image base64/URL en élément <img> prêt pour canvas.drawImage
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.src = src
+  })
+}
 
 export async function exportToImage(season: Season): Promise<void> {
   // html2canvas-pro corrige le bug de décalage vertical du texte de html2canvas 1.x
@@ -84,9 +95,52 @@ export async function exportToImage(season: Season): Promise<void> {
       scrollY: 0,
     })
 
+    // ── Composer une image finale : bande d'en-tête (logo + saison) + planning ──
+    const scale = 2
+    const headerH = 70 * scale          // hauteur de la bande d'en-tête
+    const finalCanvas = document.createElement('canvas')
+    finalCanvas.width  = canvas.width
+    finalCanvas.height = canvas.height + headerH
+    const ctx = finalCanvas.getContext('2d')!
+
+    // Fond blanc
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
+
+    // Logo à gauche
+    const logo = await getLogoBase64()
+    let textStartX = 24 * scale
+    if (logo) {
+      try {
+        const logoImg = await loadImage(logo)
+        const logoH = 54 * scale
+        const logoW = (logoImg.width / logoImg.height) * logoH
+        const logoY = (headerH - logoH) / 2
+        ctx.drawImage(logoImg, 24 * scale, logoY, logoW, logoH)
+        textStartX = 24 * scale + logoW + 16 * scale
+      } catch (e) {
+        console.error('Erreur logo image:', e)
+      }
+    }
+
+    // Titre : nom de la saison
+    ctx.fillStyle = '#1e3a8a'
+    ctx.font = `bold ${26 * scale}px Inter, Arial, sans-serif`
+    ctx.textBaseline = 'middle'
+    ctx.fillText(`Calendrier Général CTQG — Saison ${season.name}`, textStartX, headerH * 0.42)
+
+    // Sous-titre : date d'export
+    ctx.fillStyle = '#64748b'
+    ctx.font = `${15 * scale}px Inter, Arial, sans-serif`
+    const exportDate = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    ctx.fillText(`Exporté le ${exportDate}`, textStartX, headerH * 0.72)
+
+    // Dessiner le planning sous l'en-tête
+    ctx.drawImage(canvas, 0, headerH)
+
     const link = document.createElement('a')
     link.download = `Calendrier_CTQG_${season.name.replace('/', '-')}.png`
-    link.href = canvas.toDataURL('image/png')
+    link.href = finalCanvas.toDataURL('image/png')
     link.click()
   } catch (e) {
     console.error('Erreur export image:', e)

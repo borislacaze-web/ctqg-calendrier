@@ -197,7 +197,7 @@ export default function HomePage() {
               </button>
               <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 hidden group-hover:block min-w-[160px]">
                 <button
-                  onClick={() => { if (!activeSeason) return; exportToPDF(filteredEvents, categories, activeSeason) }}
+                  onClick={async () => { if (!activeSeason) return; await exportToPDF(filteredEvents, categories, activeSeason) }}
                   className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50"
                 >
                   PDF

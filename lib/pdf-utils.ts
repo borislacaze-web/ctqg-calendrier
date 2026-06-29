@@ -5,26 +5,42 @@ import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { CalendarEvent, Category, Season } from '@/types'
 import { STATUS_LABELS } from './week-utils'
+import { getLogoBase64, getImageSize } from './logo-utils'
 
-export function exportToPDF(
+export async function exportToPDF(
   events: CalendarEvent[],
   categories: Category[],
   season: Season,
   title?: string
-): void {
+): Promise<void> {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const catMap = new Map(categories.map(c => [c.id, c]))
+
+  // Logo du comité en haut à gauche
+  let textX = 14
+  const logo = await getLogoBase64()
+  if (logo) {
+    try {
+      const { width, height } = await getImageSize(logo)
+      const logoH = 14            // hauteur fixe 14mm
+      const logoW = (width / height) * logoH
+      doc.addImage(logo, 'PNG', 14, 8, logoW, logoH)
+      textX = 14 + logoW + 4      // décaler le texte après le logo
+    } catch (e) {
+      console.error('Erreur ajout logo PDF:', e)
+    }
+  }
 
   // En-tête
   doc.setFontSize(16)
   doc.setFont('helvetica', 'bold')
-  doc.text(title ?? `Calendrier CTQG — Saison ${season.name}`, 14, 16)
+  doc.text(title ?? `Calendrier CTQG — Saison ${season.name}`, textX, 16)
 
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
   doc.text(
     `Exporté le ${format(new Date(), 'dd/MM/yyyy à HH:mm', { locale: fr })}`,
-    14,
+    textX,
     22
   )
 
