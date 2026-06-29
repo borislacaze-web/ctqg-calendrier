@@ -158,3 +158,64 @@ export async function exportToImage(season: Season): Promise<void> {
     fixedBody.style.height          = saved.fixedH
   }
 }
+
+// Export image de la vue CALENDRIER (un mois) — capture simple, pas de zones séparées
+export async function exportCalendarToImage(season: Season, monthLabel: string): Promise<void> {
+  const html2canvas = (await import('html2canvas-pro')).default
+  const target = document.getElementById('calendar-content')
+  if (!target) return
+
+  try {
+    const canvas = await html2canvas(target, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      width:  target.scrollWidth,
+      height: target.scrollHeight,
+      windowWidth:  target.scrollWidth,
+      windowHeight: target.scrollHeight,
+    })
+
+    // Composer avec en-tête logo + titre
+    const scale = 2
+    const headerH = 70 * scale
+    const finalCanvas = document.createElement('canvas')
+    finalCanvas.width  = canvas.width
+    finalCanvas.height = canvas.height + headerH
+    const ctx = finalCanvas.getContext('2d')!
+
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
+
+    const logo = await getLogoBase64()
+    let textStartX = 24 * scale
+    if (logo) {
+      try {
+        const logoImg = await loadImage(logo)
+        const logoH = 54 * scale
+        const logoW = (logoImg.width / logoImg.height) * logoH
+        ctx.drawImage(logoImg, 24 * scale, (headerH - logoH) / 2, logoW, logoH)
+        textStartX = 24 * scale + logoW + 16 * scale
+      } catch {}
+    }
+
+    ctx.fillStyle = '#1e3a8a'
+    ctx.font = `bold ${26 * scale}px Inter, Arial, sans-serif`
+    ctx.textBaseline = 'middle'
+    ctx.fillText(`Calendrier Général CTQG — ${monthLabel}`, textStartX, headerH * 0.42)
+
+    ctx.fillStyle = '#64748b'
+    ctx.font = `${15 * scale}px Inter, Arial, sans-serif`
+    const exportDate = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    ctx.fillText(`Exporté le ${exportDate}`, textStartX, headerH * 0.72)
+
+    ctx.drawImage(canvas, 0, headerH)
+
+    const link = document.createElement('a')
+    link.download = `Calendrier_CTQG_${monthLabel.replace(/ /g, '_')}.png`
+    link.href = finalCanvas.toDataURL('image/png')
+    link.click()
+  } catch (e) {
+    console.error('Erreur export image calendrier:', e)
+  }
+}

@@ -1,6 +1,6 @@
 // components/planning/CalendarView.tsx
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval,
   startOfWeek, endOfWeek, isSameMonth, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -14,11 +14,12 @@ interface Props {
   categories: Category[]
   season: Season
   onEventClick: (event: CalendarEvent) => void
+  onMonthChange?: (date: Date) => void
 }
 
 const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
-export default function CalendarView({ events, categories, season, onEventClick }: Props) {
+export default function CalendarView({ events, categories, season, onEventClick, onMonthChange }: Props) {
   const startYear = parseInt(season.name.split('/')[0])
   const [currentDate, setCurrentDate] = useState(() => {
     const now = new Date()
@@ -31,6 +32,11 @@ export default function CalendarView({ events, categories, season, onEventClick 
 
   const feriesMap = useMemo(() => getJoursFeriesSaison(startYear), [startYear])
   const catMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories])
+
+  // Remonter le mois affiché vers le parent (pour l'export "Vue en cours")
+  useEffect(() => {
+    onMonthChange?.(currentDate)
+  }, [currentDate, onMonthChange])
 
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
@@ -62,7 +68,7 @@ export default function CalendarView({ events, categories, season, onEventClick 
   }
 
   return (
-    <div style={{ fontFamily: 'var(--font-sans)', padding: '0 0 1rem' }}>
+    <div id="calendar-content" style={{ fontFamily: 'var(--font-sans)', padding: '0 0 1rem' }}>
       {/* Navigation */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
         <button

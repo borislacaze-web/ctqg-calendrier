@@ -17,8 +17,9 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { exportToExcel } from '@/lib/excel-utils'
 import { exportToPDF } from '@/lib/pdf-utils'
-import { exportToImage } from '@/lib/image-export'
+import { exportToImage, exportCalendarToImage } from '@/lib/image-export'
 import { addDays, format } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import type { CalendarEvent, Season } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -37,6 +38,7 @@ export default function HomePage() {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null | undefined>(undefined)
   const [showForm, setShowForm] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const [filters, setFilters] = useState({ keyword: '', categoryId: '', month: '' })
 
   useEffect(() => {
@@ -59,6 +61,25 @@ export default function HomePage() {
     const m = parseInt(filters.month)
     return events.filter(ev => new Date(ev.start_date).getMonth() + 1 === m)
   }, [events, filters.month])
+
+  // Événements du mois affiché dans la vue Calendrier (pour l'export "Vue en cours")
+  // Un événement est inclus s'il chevauche le mois affiché (début ou fin dans le mois)
+  const eventsForCalendarMonth = useMemo(() => {
+    const y = calendarMonth.getFullYear()
+    const m = calendarMonth.getMonth()
+    const monthStart = new Date(y, m, 1)
+    const monthEnd = new Date(y, m + 1, 0, 23, 59, 59)
+    return filteredEvents.filter(ev => {
+      const start = new Date(ev.start_date)
+      const end = new Date(ev.end_date)
+      return start <= monthEnd && end >= monthStart
+    })
+  }, [filteredEvents, calendarMonth])
+
+  const calendarMonthLabel = useMemo(() => {
+    const label = format(calendarMonth, 'MMMM yyyy', { locale: fr })
+    return label.charAt(0).toUpperCase() + label.slice(1)
+  }, [calendarMonth])
 
   const handleDelete = async (event: CalendarEvent) => {
     const { error } = await supabase.from('events').delete().eq('id', event.id)
@@ -197,27 +218,44 @@ export default function HomePage() {
               </button>
               {/* pt-1 au lieu de mt-1 : le padding fait partie de la zone hover,
                   donc plus de "trou" entre le bouton et le menu où le survol se perd */}
-              <div className="absolute right-0 top-full pt-1 z-10 hidden group-hover:block min-w-[160px]">
+              <div className="absolute right-0 top-full pt-1 z-10 hidden group-hover:block min-w-[180px]">
                 <div className="bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
                   <button
-                    onClick={async () => { if (!activeSeason) return; await exportToPDF(filteredEvents, categories, activeSeason) }}
+                    onClick={async () => {
+                      if (!activeSeason) return
+                      const evts = view === 'calendar' ? eventsForCalendarMonth : filteredEvents
+                      const titre = view === 'calendar'
+                        ? `Calendrier CTQG — ${calendarMonthLabel}`
+                        : undefined
+                      await exportToPDF(evts, categories, activeSeason, titre)
+                    }}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
                   >
                     <FileText className="w-4 h-4 text-red-600" />
-                    PDF
+                    PDF{view === 'calendar' ? ' (Vue en cours)' : ''}
                   </button>
                   <button
-                    onClick={() => { if (!activeSeason) return; exportToExcel(filteredEvents, categories, subcategories, activeSeason) }}
+                    onClick={() => {
+                      if (!activeSeason) return
+                      const evts = view === 'calendar' ? eventsForCalendarMonth : filteredEvents
+                      exportToExcel(evts, categories, subcategories, activeSeason)
+                    }}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
                   >
                     <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                    Excel
+                    Excel{view === 'calendar' ? ' (Vue en cours)' : ''}
                   </button>
                   <button
                     onClick={async () => {
                       if (!activeSeason || exportingImage) return
                       setExportingImage(true)
-                      try { await exportToImage(activeSeason) }
+                      try {
+                        if (view === 'calendar') {
+                          await exportCalendarToImage(activeSeason, calendarMonthLabel)
+                        } else {
+                          await exportToImage(activeSeason)
+                        }
+                      }
                       finally { setExportingImage(false) }
                     }}
                     className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
@@ -225,7 +263,7 @@ export default function HomePage() {
                   >
                     {exportingImage
                       ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin inline-block" /> Génération…</>
-                      : <><span className="text-base">🖼</span> Image</>
+                      : <><span className="text-base">🖼</span> Image{view === 'calendar' ? ' (Vue en cours)' : ''}</>
                     }
                   </button>
                 </div>
@@ -280,6 +318,7 @@ export default function HomePage() {
             categories={categories}
             season={activeSeason}
             onEventClick={setSelectedEvent}
+            onMonthChange={setCalendarMonth}
           />
         ) : (
           <ListView
