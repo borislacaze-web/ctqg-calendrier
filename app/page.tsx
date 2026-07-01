@@ -173,7 +173,7 @@ export default function HomePage() {
   ]
 
   return (
-    <div className="app-root h-screen flex flex-col bg-slate-50">
+    <div className={`app-root h-screen flex flex-col bg-slate-50 ${view === 'planning' ? 'view-planning' : 'view-other'}`}>
       <Navbar />
 
       {/* Toolbar */}
@@ -284,7 +284,12 @@ export default function HomePage() {
       </div>
 
       {/* Contenu */}
-      <main className="app-main flex-1 w-full overflow-hidden" style={view === 'planning' ? { padding: '8px', overflowX: 'hidden', display: 'flex', flexDirection: 'column' } : { maxWidth: '1600px', margin: '0 auto', padding: '16px' }}>
+      <main
+        className={`app-main flex-1 w-full ${view === 'planning' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+        style={view === 'planning'
+          ? { padding: '8px', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }
+          : { maxWidth: '1600px', margin: '0 auto', padding: '16px' }}
+      >
         {isLoading ? (
           <div className="flex items-center justify-center py-24 text-slate-400">
             <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
