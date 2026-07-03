@@ -2,6 +2,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
+import { Analytics } from '@vercel/analytics/react'
 import ViewportManager from '@/components/layout/ViewportManager'
 import './globals.css'
 
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ViewportManager />
         {children}
         <Toaster position="top-right" />
+        <Analytics />
       </body>
     </html>
   )
