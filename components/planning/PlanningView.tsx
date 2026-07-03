@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { format, isBefore, startOfMonth, parseISO, addDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ChevronUp, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import type { CalendarEvent, Category, Subcategory, Season } from '@/types'
 import {
   getSeasonWeeks, assignEventsToWeeks, isSchoolHoliday,
@@ -68,6 +68,27 @@ export default function PlanningView({
   }, [weeks])
 
   const [collapsed, setCollapsed] = useState<Set<string>>(defaultCollapsed)
+  // Mois en cours de repliement (fondu de sortie avant disparition réelle)
+  const [closingMonths, setClosingMonths] = useState<Set<string>>(new Set())
+
+  const ANIM_MS = 170
+
+  // Bascule dépliage/repliement d'un mois avec une petite animation de fondu.
+  // Dépliage : instantané (le fondu d'entrée est géré en CSS au montage des lignes).
+  // Repliement : on affiche d'abord le fondu de sortie, puis on retire réellement
+  // les lignes après ANIM_MS pour laisser l'animation se jouer.
+  const toggleMonth = (monthKey: string) => {
+    const isCurrentlyCollapsed = collapsed.has(monthKey)
+    if (isCurrentlyCollapsed) {
+      setCollapsed(prev => { const n = new Set(prev); n.delete(monthKey); return n })
+    } else {
+      setClosingMonths(prev => new Set(prev).add(monthKey))
+      setTimeout(() => {
+        setClosingMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
+        setCollapsed(prev => new Set(prev).add(monthKey))
+      }, ANIM_MS)
+    }
+  }
 
   /*
     ARCHITECTURE — 4 zones synchronisées :
@@ -309,28 +330,39 @@ export default function PlanningView({
         if (!monthWeeks.some(w => w.saturday.getMonth()+1 === fm)) return null
       }
       const isCol = collapsed.has(monthKey)
+      const isClosing = closingMonths.has(monthKey)
       const p = monthKey.split('-')
       const monthDate = new Date(parseInt(p[0]), parseInt(p[1])-1, 1)
       return (
         <>
           {/* Ligne mois */}
           <tr key={`mf-${monthKey}`}
-            onClick={() => setCollapsed(prev => { const n = new Set(prev); if (n.has(monthKey)) n.delete(monthKey); else n.add(monthKey); return n })}
+            onClick={() => toggleMonth(monthKey)}
             style={{ cursor: 'pointer' }}>
             <td style={semMonthStyle}>
               <div>{format(monthDate, 'MMM', { locale: fr }).toUpperCase()}</div>
               <div style={{ fontSize: '9px', fontWeight: 400 }}>{format(monthDate, 'yyyy')}</div>
             </td>
             <td style={wendMonthStyle}>
-              {isCol ? <ChevronDown style={{ width: 14, height: 14, margin: '0 auto' }} /> : <ChevronUp style={{ width: 14, height: 14, margin: '0 auto' }} />}
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 26, height: 26, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.08)',
+              }}>
+                <ChevronDown style={{
+                  width: 18, height: 18, color: '#e2e8f0', strokeWidth: 2.5,
+                  transform: isCol ? 'rotate(0deg)' : 'rotate(180deg)',
+                  transition: 'transform 200ms ease',
+                }} />
+              </span>
             </td>
           </tr>
           {/* Lignes semaines */}
-          {!isCol && monthWeeks.map(week => {
+          {(!isCol || isClosing) && monthWeeks.map(week => {
             const isHol = isSchoolHoliday(week.monday, season.name)
             const feries = getFeriesInWeek(week.monday, feriesMap)
             return (
-              <tr key={`wf-${week.week_number}`}>
+              <tr key={`wf-${week.week_number}`} className={isClosing ? 'week-row-out' : 'week-row-in'}>
                 <td style={semTdStyle(isHol ? '#fef08a' : '#eff6ff', isHol ? '#854d0e' : '#1e40af')}>
                   <div style={{ fontWeight: 700, fontSize: '13px' }}>S{week.week_number}</div>
                   {isHol && <div style={{ fontSize: '9px', color: '#854d0e' }}>Vacances</div>}
@@ -360,24 +392,25 @@ export default function PlanningView({
         if (!monthWeeks.some(w => w.saturday.getMonth()+1 === fm)) return null
       }
       const isCol = collapsed.has(monthKey)
+      const isClosing = closingMonths.has(monthKey)
       const hasEvts = monthWeeks.some(w => columns.some(col => getColEvs(w.events, col).length > 0))
       return (
         <>
           {/* Ligne mois */}
           <tr key={`ms-${monthKey}`}
-            onClick={() => setCollapsed(prev => { const n = new Set(prev); if (n.has(monthKey)) n.delete(monthKey); else n.add(monthKey); return n })}
+            onClick={() => toggleMonth(monthKey)}
             style={{ cursor: 'pointer' }}>
             <td colSpan={columns.length} style={{ background: '#374151', border: '1px solid #4b5563', padding: '4px 12px' }}>
               {!hasEvts && !filterKeyword && <span style={{ fontSize: '10px', color: '#9ca3af' }}>Aucun événement</span>}
             </td>
           </tr>
           {/* Lignes semaines */}
-          {!isCol && monthWeeks.map(week => {
+          {(!isCol || isClosing) && monthWeeks.map(week => {
             const isHol = isSchoolHoliday(week.monday, season.name)
             const satStr = format(week.saturday, 'yyyy-MM-dd')
             const isDropTarget = dropTarget === satStr
             return (
-              <tr key={`ws-${week.week_number}`}>
+              <tr key={`ws-${week.week_number}`} className={isClosing ? 'week-row-out' : 'week-row-in'}>
                 {columns.map(col => (
                   <td key={col.key} data-saturday={satStr} style={{
                     border: '1px solid #dde3ec',
@@ -498,7 +531,12 @@ export default function PlanningView({
         </div>
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes weekRowIn { from { opacity: 0; } to { opacity: 1; } }
+        .week-row-in { animation: weekRowIn ${ANIM_MS}ms ease-out; }
+        .week-row-out { opacity: 0; transition: opacity ${ANIM_MS}ms ease-in; }
+      `}</style>
     </div>
   )
 }
