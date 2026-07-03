@@ -1,6 +1,6 @@
 // components/planning/PlanningView.tsx
 'use client'
-import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { format, isBefore, startOfMonth, parseISO, addDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ChevronDown } from 'lucide-react'
@@ -68,27 +68,127 @@ export default function PlanningView({
   }, [weeks])
 
   const [collapsed, setCollapsed] = useState<Set<string>>(defaultCollapsed)
-  // Mois en cours de repliement (fondu de sortie avant disparition réelle)
+  // Mois en cours d'animation (dépliage ou repliement)
   const [closingMonths, setClosingMonths] = useState<Set<string>>(new Set())
+  const [enteringMonths, setEnteringMonths] = useState<Set<string>>(new Set())
+  // Ref miroir (accessible de façon synchrone dans syncRowHeights sans dépendance)
+  const animatingMonthsRef = useRef<Set<string>>(new Set())
 
-  const ANIM_MS = 170
+  const ANIM_MS = 220
 
-  // Bascule dépliage/repliement d'un mois avec une petite animation de fondu.
-  // Dépliage : instantané (le fondu d'entrée est géré en CSS au montage des lignes).
-  // Repliement : on affiche d'abord le fondu de sortie, puis on retire réellement
-  // les lignes après ANIM_MS pour laisser l'animation se jouer.
+  // Récupère séparément les lignes (fixe / scroll) d'un mois, dans le même ordre
+  // (nécessaire pour prendre le max des deux et garder les deux tableaux alignés)
+  const getMonthRowPairs = useCallback((monthKey: string): { fixed: HTMLElement[]; scroll: HTMLElement[] } => {
+    const fixedTable  = fixedBodyTableRef.current
+    const scrollTable = scrollBodyTableRef.current
+    if (!fixedTable || !scrollTable) return { fixed: [], scroll: [] }
+    return {
+      fixed:  Array.from(fixedTable.querySelectorAll<HTMLElement>(`tr[data-month="${monthKey}"]`)),
+      scroll: Array.from(scrollTable.querySelectorAll<HTMLElement>(`tr[data-month="${monthKey}"]`)),
+    }
+  }, [])
+
+  // Bascule dépliage/repliement d'un mois avec un effet "rideau" :
+  // les lignes glissent en hauteur (0 ↔ hauteur réelle) au lieu d'apparaître/disparaître d'un coup.
   const toggleMonth = (monthKey: string) => {
     const isCurrentlyCollapsed = collapsed.has(monthKey)
+    animatingMonthsRef.current.add(monthKey)
     if (isCurrentlyCollapsed) {
+      // Dépliage : on démonte le mois, l'effet d'entrée est géré par le useLayoutEffect ci-dessous
       setCollapsed(prev => { const n = new Set(prev); n.delete(monthKey); return n })
+      setEnteringMonths(prev => new Set(prev).add(monthKey))
     } else {
+      // Repliement : on lance l'animation de sortie, le retrait réel du DOM suit après ANIM_MS
       setClosingMonths(prev => new Set(prev).add(monthKey))
-      setTimeout(() => {
-        setClosingMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
-        setCollapsed(prev => new Set(prev).add(monthKey))
-      }, ANIM_MS)
     }
   }
+
+  // ── DÉPLIAGE : le rideau glisse vers le bas et révèle les semaines ──
+  useLayoutEffect(() => {
+    enteringMonths.forEach(monthKey => {
+      const { fixed, scroll } = getMonthRowPairs(monthKey)
+      const len = Math.min(fixed.length, scroll.length)
+      if (len === 0) return
+      const allRows = [...fixed, ...scroll]
+
+      // 1. Mesurer la hauteur naturelle de chaque paire (max fixe/scroll, comme syncRowHeights)
+      const naturalHeights: number[] = []
+      for (let i = 0; i < len; i++) {
+        naturalHeights[i] = Math.ceil(Math.max(
+          fixed[i].getBoundingClientRect().height,
+          scroll[i].getBoundingClientRect().height,
+        ))
+      }
+
+      // 2. Forcer à 0 immédiatement, avant peinture (useLayoutEffect → pas de flash visible)
+      allRows.forEach(r => {
+        r.style.transition = 'none'
+        r.style.overflow = 'hidden'
+        r.style.height = '0px'
+        r.style.opacity = '0'
+      })
+
+      // 3. Au frame suivant : réactiver la transition et viser la hauteur réelle
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          for (let i = 0; i < len; i++) {
+            const h = `${naturalHeights[i]}px`
+            fixed[i].style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
+            fixed[i].style.height = h
+            fixed[i].style.opacity = '1'
+            scroll[i].style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
+            scroll[i].style.height = h
+            scroll[i].style.opacity = '1'
+          }
+          setTimeout(() => {
+            allRows.forEach(r => { r.style.transition = ''; r.style.overflow = '' })
+            animatingMonthsRef.current.delete(monthKey)
+            setEnteringMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
+            syncRowHeights() // re-synchronise proprement une fois l'animation terminée
+          }, ANIM_MS)
+        })
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enteringMonths])
+
+  // ── REPLIEMENT : le rideau remonte et avale les semaines ──
+  useLayoutEffect(() => {
+    closingMonths.forEach(monthKey => {
+      const { fixed, scroll } = getMonthRowPairs(monthKey)
+      const len = Math.min(fixed.length, scroll.length)
+      if (len === 0) return
+      const allRows = [...fixed, ...scroll]
+
+      // 1. Fixer explicitement la hauteur actuelle (max fixe/scroll) = point de départ
+      allRows.forEach(r => { r.style.transition = 'none'; r.style.overflow = 'hidden' })
+      for (let i = 0; i < len; i++) {
+        const h = `${Math.ceil(Math.max(
+          fixed[i].getBoundingClientRect().height,
+          scroll[i].getBoundingClientRect().height,
+        ))}px`
+        fixed[i].style.height = h
+        scroll[i].style.height = h
+      }
+
+      // 2. Au frame suivant : animer vers 0
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          allRows.forEach(r => {
+            r.style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
+            r.style.height = '0px'
+            r.style.opacity = '0'
+          })
+          setTimeout(() => {
+            animatingMonthsRef.current.delete(monthKey)
+            setClosingMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
+            setCollapsed(prev => new Set(prev).add(monthKey))
+          }, ANIM_MS)
+        })
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closingMonths])
 
   /*
     ARCHITECTURE — 4 zones synchronisées :
@@ -118,22 +218,31 @@ export default function PlanningView({
     const scrollTable = scrollBodyTableRef.current
     if (!fixedTable || !scrollTable) return
 
-    const fixedRows  = Array.from(fixedTable.querySelectorAll('tr'))
-    const scrollRows = Array.from(scrollTable.querySelectorAll('tr'))
+    const fixedRows  = Array.from(fixedTable.querySelectorAll('tr')) as HTMLElement[]
+    const scrollRows = Array.from(scrollTable.querySelectorAll('tr')) as HTMLElement[]
     const len = Math.min(fixedRows.length, scrollRows.length)
 
+    // Ne pas toucher aux lignes dont le mois est en cours d'animation (rideau)
+    // pour ne pas interrompre la transition en cours
+    const isAnimating = (r: HTMLElement) => {
+      const m = r.dataset.month
+      return m ? animatingMonthsRef.current.has(m) : false
+    }
+
     for (let i = 0; i < len; i++) {
+      if (isAnimating(fixedRows[i]) || isAnimating(scrollRows[i])) continue
       // Reset d'abord pour mesurer la hauteur naturelle
-      ;(fixedRows[i] as HTMLElement).style.height = ''
-      ;(scrollRows[i] as HTMLElement).style.height = ''
+      fixedRows[i].style.height = ''
+      scrollRows[i].style.height = ''
     }
     for (let i = 0; i < len; i++) {
+      if (isAnimating(fixedRows[i]) || isAnimating(scrollRows[i])) continue
       const h = Math.ceil(Math.max(
-        (fixedRows[i] as HTMLElement).getBoundingClientRect().height,
-        (scrollRows[i] as HTMLElement).getBoundingClientRect().height,
+        fixedRows[i].getBoundingClientRect().height,
+        scrollRows[i].getBoundingClientRect().height,
       ))
-      ;(fixedRows[i] as HTMLElement).style.height = `${h}px`
-      ;(scrollRows[i] as HTMLElement).style.height = `${h}px`
+      fixedRows[i].style.height = `${h}px`
+      scrollRows[i].style.height = `${h}px`
     }
   }, [])
 
@@ -362,7 +471,7 @@ export default function PlanningView({
             const isHol = isSchoolHoliday(week.monday, season.name)
             const feries = getFeriesInWeek(week.monday, feriesMap)
             return (
-              <tr key={`wf-${week.week_number}`} className={isClosing ? 'week-row-out' : 'week-row-in'}>
+              <tr key={`wf-${week.week_number}`} data-month={monthKey}>
                 <td style={semTdStyle(isHol ? '#fef08a' : '#eff6ff', isHol ? '#854d0e' : '#1e40af')}>
                   <div style={{ fontWeight: 700, fontSize: '13px' }}>S{week.week_number}</div>
                   {isHol && <div style={{ fontSize: '9px', color: '#854d0e' }}>Vacances</div>}
@@ -410,7 +519,7 @@ export default function PlanningView({
             const satStr = format(week.saturday, 'yyyy-MM-dd')
             const isDropTarget = dropTarget === satStr
             return (
-              <tr key={`ws-${week.week_number}`} className={isClosing ? 'week-row-out' : 'week-row-in'}>
+              <tr key={`ws-${week.week_number}`} data-month={monthKey}>
                 {columns.map(col => (
                   <td key={col.key} data-saturday={satStr} style={{
                     border: '1px solid #dde3ec',
@@ -533,9 +642,6 @@ export default function PlanningView({
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes weekRowIn { from { opacity: 0; } to { opacity: 1; } }
-        .week-row-in { animation: weekRowIn ${ANIM_MS}ms ease-out; }
-        .week-row-out { opacity: 0; transition: opacity ${ANIM_MS}ms ease-in; }
       `}</style>
     </div>
   )
