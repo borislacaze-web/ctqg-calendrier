@@ -121,12 +121,21 @@ export default function PlanningView({
       }
 
       // 2. Forcer à 0 immédiatement, avant peinture (useLayoutEffect → pas de flash visible)
+      //    On applique aussi sur les <td> : les tables ignorent souvent height sur <tr> seul
       allRows.forEach(r => {
         r.style.transition = 'none'
         r.style.overflow = 'hidden'
         r.style.willChange = 'height'
         r.style.height = '0px'
         r.style.opacity = '0'
+        Array.from(r.children).forEach(td => {
+          const c = td as HTMLElement
+          c.style.transition = 'none'
+          c.style.overflow = 'hidden'
+          c.style.height = '0px'
+          c.style.paddingTop = '0px'
+          c.style.paddingBottom = '0px'
+        })
       })
 
       // 3. Au frame suivant : réactiver la transition et viser la hauteur réelle
@@ -134,15 +143,28 @@ export default function PlanningView({
         requestAnimationFrame(() => {
           for (let i = 0; i < len; i++) {
             const h = `${naturalHeights[i]}px`
-            fixed[i].style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
-            fixed[i].style.height = h
-            fixed[i].style.opacity = '1'
-            scroll[i].style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
-            scroll[i].style.height = h
-            scroll[i].style.opacity = '1'
+            ;[fixed[i], scroll[i]].forEach(r => {
+              r.style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
+              r.style.height = h
+              r.style.opacity = '1'
+              Array.from(r.children).forEach(td => {
+                const c = td as HTMLElement
+                c.style.transition = `height ${ANIM_MS}ms ease, padding ${ANIM_MS}ms ease`
+                c.style.height = h
+                c.style.paddingTop = ''
+                c.style.paddingBottom = ''
+              })
+            })
           }
           setTimeout(() => {
-            allRows.forEach(r => { r.style.transition = ''; r.style.overflow = ''; r.style.willChange = '' })
+            allRows.forEach(r => {
+              r.style.transition = ''; r.style.overflow = ''; r.style.willChange = ''
+              Array.from(r.children).forEach(td => {
+                const c = td as HTMLElement
+                c.style.transition = ''; c.style.overflow = ''; c.style.height = ''
+                c.style.paddingTop = ''; c.style.paddingBottom = ''
+              })
+            })
             animatingMonthsRef.current.delete(monthKey)
             setEnteringMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
             syncRowHeights() // re-synchronise proprement une fois l'animation terminée
@@ -173,8 +195,15 @@ export default function PlanningView({
       allRows.forEach(r => { r.style.transition = 'none'; r.style.overflow = 'hidden'; r.style.willChange = 'height' })
       for (let i = 0; i < len; i++) {
         const h = `${currentHeights[i]}px`
-        fixed[i].style.height = h
-        scroll[i].style.height = h
+        ;[fixed[i], scroll[i]].forEach(r => {
+          r.style.height = h
+          Array.from(r.children).forEach(td => {
+            const c = td as HTMLElement
+            c.style.transition = 'none'
+            c.style.overflow = 'hidden'
+            c.style.height = h
+          })
+        })
       }
 
       // 2. Au frame suivant : animer vers 0
@@ -184,9 +213,23 @@ export default function PlanningView({
             r.style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
             r.style.height = '0px'
             r.style.opacity = '0'
+            Array.from(r.children).forEach(td => {
+              const c = td as HTMLElement
+              c.style.transition = `height ${ANIM_MS}ms ease, padding ${ANIM_MS}ms ease`
+              c.style.height = '0px'
+              c.style.paddingTop = '0px'
+              c.style.paddingBottom = '0px'
+            })
           })
           setTimeout(() => {
-            allRows.forEach(r => { r.style.willChange = '' })
+            allRows.forEach(r => {
+              r.style.willChange = ''
+              Array.from(r.children).forEach(td => {
+                const c = td as HTMLElement
+                c.style.transition = ''; c.style.overflow = ''; c.style.height = ''
+                c.style.paddingTop = ''; c.style.paddingBottom = ''
+              })
+            })
             animatingMonthsRef.current.delete(monthKey)
             setClosingMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
             setCollapsed(prev => new Set(prev).add(monthKey))
