@@ -103,6 +103,19 @@ export default function PlanningView({
     }
   }
 
+  // Prépare les cellules d'une ligne pour l'animation : retourne les infos nécessaires.
+  // On anime la hauteur des .cell-inner + les paddings des <td> car en CSS,
+  // height sur une cellule de table = hauteur MINIMALE (jamais plus petite que
+  // son contenu). Seul le contenu (le div interne) peut réellement rétrécir.
+  const collectRowCells = (row: HTMLElement) => {
+    const cells = Array.from(row.children) as HTMLElement[]
+    return cells.map(td => {
+      const inner = td.querySelector(':scope > .cell-inner') as HTMLElement | null
+      const cs = window.getComputedStyle(td)
+      return { td, inner, padTop: parseFloat(cs.paddingTop) || 0, padBot: parseFloat(cs.paddingBottom) || 0 }
+    })
+  }
+
   // ── DÉPLIAGE : le rideau glisse vers le bas et révèle les semaines ──
   useLayoutEffect(() => {
     enteringMonths.forEach(monthKey => {
@@ -111,60 +124,54 @@ export default function PlanningView({
       if (len === 0) return
       const allRows = [...fixed, ...scroll]
 
-      // 1. Mesurer la hauteur naturelle de chaque paire (max fixe/scroll, comme syncRowHeights)
-      const naturalHeights: number[] = []
+      // 1. Mesurer la hauteur naturelle de chaque paire de lignes (max fixe/scroll)
+      const rowHeights: number[] = []
       for (let i = 0; i < len; i++) {
-        naturalHeights[i] = Math.ceil(Math.max(
+        rowHeights[i] = Math.ceil(Math.max(
           fixed[i].getBoundingClientRect().height,
           scroll[i].getBoundingClientRect().height,
         ))
       }
 
-      // 2. Forcer à 0 immédiatement, avant peinture (useLayoutEffect → pas de flash visible)
-      //    On applique aussi sur les <td> : les tables ignorent souvent height sur <tr> seul
-      allRows.forEach(r => {
-        r.style.transition = 'none'
-        r.style.overflow = 'hidden'
-        r.style.willChange = 'height'
-        r.style.height = '0px'
-        r.style.opacity = '0'
-        Array.from(r.children).forEach(td => {
-          const c = td as HTMLElement
-          c.style.transition = 'none'
-          c.style.overflow = 'hidden'
-          c.style.height = '0px'
-          c.style.paddingTop = '0px'
-          c.style.paddingBottom = '0px'
+      const rowCells = allRows.map(collectRowCells)
+
+      // 2. Écraser tout à 0 avant peinture : inner à 0, paddings td à 0
+      rowCells.forEach(cells => {
+        cells.forEach(({ td, inner }) => {
+          td.style.transition = 'none'
+          td.style.paddingTop = '0px'
+          td.style.paddingBottom = '0px'
+          if (inner) {
+            inner.style.transition = 'none'
+            inner.style.height = '0px'
+            inner.style.opacity = '0'
+          }
         })
       })
 
-      // 3. Au frame suivant : réactiver la transition et viser la hauteur réelle
+      // 3. Frame suivant : animer chaque inner vers (hauteurLigne - paddings) et paddings vers l'origine
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          for (let i = 0; i < len; i++) {
-            const h = `${naturalHeights[i]}px`
-            ;[fixed[i], scroll[i]].forEach(r => {
-              r.style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
-              r.style.height = h
-              r.style.opacity = '1'
-              Array.from(r.children).forEach(td => {
-                const c = td as HTMLElement
-                c.style.transition = `height ${ANIM_MS}ms ease, padding ${ANIM_MS}ms ease`
-                c.style.height = h
-                c.style.paddingTop = ''
-                c.style.paddingBottom = ''
-              })
+          allRows.forEach((row, rowIdx) => {
+            // allRows = [...fixed, ...scroll] : les index 0..len-1 sont fixed, len..2len-1 sont scroll
+            const pairIdx = rowIdx < fixed.length ? rowIdx : rowIdx - fixed.length
+            const targetRowH = rowHeights[Math.min(pairIdx, len - 1)]
+            rowCells[rowIdx].forEach(({ td, inner, padTop, padBot }) => {
+              td.style.transition = `padding ${ANIM_MS}ms ease`
+              td.style.paddingTop = `${padTop}px`
+              td.style.paddingBottom = `${padBot}px`
+              if (inner) {
+                inner.style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
+                inner.style.height = `${Math.max(0, targetRowH - padTop - padBot)}px`
+                inner.style.opacity = '1'
+              }
             })
-          }
+          })
           setTimeout(() => {
-            allRows.forEach(r => {
-              r.style.transition = ''; r.style.overflow = ''; r.style.willChange = ''
-              Array.from(r.children).forEach(td => {
-                const c = td as HTMLElement
-                c.style.transition = ''; c.style.overflow = ''; c.style.height = ''
-                c.style.paddingTop = ''; c.style.paddingBottom = ''
-              })
-            })
+            rowCells.forEach(cells => cells.forEach(({ td, inner }) => {
+              td.style.transition = ''; td.style.paddingTop = ''; td.style.paddingBottom = ''
+              if (inner) { inner.style.transition = ''; inner.style.height = ''; inner.style.opacity = '' }
+            }))
             animatingMonthsRef.current.delete(monthKey)
             setEnteringMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
             syncRowHeights() // re-synchronise proprement une fois l'animation terminée
@@ -183,53 +190,53 @@ export default function PlanningView({
       if (len === 0) return
       const allRows = [...fixed, ...scroll]
 
-      // 1. Fixer explicitement la hauteur actuelle (max fixe/scroll) = point de départ
-      //    Lectures d'abord, puis écritures groupées (évite le layout thrashing)
-      const currentHeights: number[] = []
+      // 1. Hauteur actuelle de chaque paire (max fixe/scroll) = point de départ
+      const rowHeights: number[] = []
       for (let i = 0; i < len; i++) {
-        currentHeights[i] = Math.ceil(Math.max(
+        rowHeights[i] = Math.ceil(Math.max(
           fixed[i].getBoundingClientRect().height,
           scroll[i].getBoundingClientRect().height,
         ))
       }
-      allRows.forEach(r => { r.style.transition = 'none'; r.style.overflow = 'hidden'; r.style.willChange = 'height' })
-      for (let i = 0; i < len; i++) {
-        const h = `${currentHeights[i]}px`
-        ;[fixed[i], scroll[i]].forEach(r => {
-          r.style.height = h
-          Array.from(r.children).forEach(td => {
-            const c = td as HTMLElement
-            c.style.transition = 'none'
-            c.style.overflow = 'hidden'
-            c.style.height = h
-          })
-        })
-      }
 
-      // 2. Au frame suivant : animer vers 0
+      const rowCells = allRows.map(collectRowCells)
+
+      // 2. Fixer explicitement l'état de départ : inner = hauteurLigne - paddings,
+      //    et LIBÉRER le height forcé des <tr> (posé par syncRowHeights) pour que
+      //    la ligne puisse suivre son contenu quand il rétrécit
+      allRows.forEach(row => { row.style.height = '' })
+      allRows.forEach((row, rowIdx) => {
+        const pairIdx = rowIdx < fixed.length ? rowIdx : rowIdx - fixed.length
+        const startRowH = rowHeights[Math.min(pairIdx, len - 1)]
+        rowCells[rowIdx].forEach(({ td, inner, padTop, padBot }) => {
+          td.style.transition = 'none'
+          if (inner) {
+            inner.style.transition = 'none'
+            inner.style.height = `${Math.max(0, startRowH - padTop - padBot)}px`
+          }
+        })
+      })
+
+      // 3. Frame suivant : animer inner → 0 et paddings → 0 (la ligne suit son contenu)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          allRows.forEach(r => {
-            r.style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
-            r.style.height = '0px'
-            r.style.opacity = '0'
-            Array.from(r.children).forEach(td => {
-              const c = td as HTMLElement
-              c.style.transition = `height ${ANIM_MS}ms ease, padding ${ANIM_MS}ms ease`
-              c.style.height = '0px'
-              c.style.paddingTop = '0px'
-              c.style.paddingBottom = '0px'
+          rowCells.forEach(cells => {
+            cells.forEach(({ td, inner }) => {
+              td.style.transition = `padding ${ANIM_MS}ms ease`
+              td.style.paddingTop = '0px'
+              td.style.paddingBottom = '0px'
+              if (inner) {
+                inner.style.transition = `height ${ANIM_MS}ms ease, opacity ${ANIM_MS}ms ease`
+                inner.style.height = '0px'
+                inner.style.opacity = '0'
+              }
             })
           })
           setTimeout(() => {
-            allRows.forEach(r => {
-              r.style.willChange = ''
-              Array.from(r.children).forEach(td => {
-                const c = td as HTMLElement
-                c.style.transition = ''; c.style.overflow = ''; c.style.height = ''
-                c.style.paddingTop = ''; c.style.paddingBottom = ''
-              })
-            })
+            rowCells.forEach(cells => cells.forEach(({ td, inner }) => {
+              td.style.transition = ''; td.style.paddingTop = ''; td.style.paddingBottom = ''
+              if (inner) { inner.style.transition = ''; inner.style.height = ''; inner.style.opacity = '' }
+            }))
             animatingMonthsRef.current.delete(monthKey)
             setClosingMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
             setCollapsed(prev => new Set(prev).add(monthKey))
@@ -523,6 +530,7 @@ export default function PlanningView({
             return (
               <tr key={`wf-${week.week_number}`} data-month={monthKey}>
                 <td style={semTdStyle(isHol ? '#fef08a' : '#eff6ff', isHol ? '#854d0e' : '#1e40af')}>
+                  <div className="cell-inner" style={{ overflow: 'hidden' }}>
                   <div style={{ fontWeight: 700, fontSize: '13px' }}>S{week.week_number}</div>
                   {isHol && <div style={{ fontSize: '9px', color: '#854d0e' }}>Vacances</div>}
                   {feries.map(f => (
@@ -531,10 +539,13 @@ export default function PlanningView({
                       <div style={{ fontWeight: 400 }}>{format(parseISO(f.date), 'dd/MM')}</div>
                     </div>
                   ))}
+                  </div>
                 </td>
                 <td style={wendTdStyle(isHol ? '#fefce8' : '#f8fafc')}>
+                  <div className="cell-inner" style={{ overflow: 'hidden' }}>
                   <div>Sam {format(week.saturday, 'dd/MM')}</div>
                   <div>Dim {format(week.sunday, 'dd/MM')}</div>
+                  </div>
                 </td>
               </tr>
             )
@@ -581,6 +592,7 @@ export default function PlanningView({
                     transition: 'background 0.1s',
                     width: W_COL, minWidth: W_COL,
                   }}>
+                    <div className="cell-inner" style={{ overflow: 'hidden' }}>
                     {getColEvs(week.events, col).map(ev => (
                       <EventBadge
                         key={ev.id}
@@ -591,6 +603,7 @@ export default function PlanningView({
                         isAdmin={isAdmin}
                       />
                     ))}
+                    </div>
                   </td>
                 ))}
               </tr>
