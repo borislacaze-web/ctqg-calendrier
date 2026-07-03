@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Plus, Download, FileSpreadsheet, FileText, LayoutList, Table2, CalendarDays } from 'lucide-react'
 import Navbar from '@/components/layout/Navbar'
 import SeasonSelector from '@/components/layout/SeasonSelector'
-import FilterBar from '@/components/filters/FilterBar'
+import FilterBar, { type Filters } from '@/components/filters/FilterBar'
 import PlanningView from '@/components/planning/PlanningView'
 import ListView from '@/components/planning/ListView'
 import CalendarView from '@/components/planning/CalendarView'
@@ -39,7 +39,7 @@ export default function HomePage() {
   const [showForm, setShowForm] = useState(false)
   const [exportingImage, setExportingImage] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
-  const [filters, setFilters] = useState({ keyword: '', categoryId: '', month: '' })
+  const [filters, setFilters] = useState<Filters>({ keyword: '', excludedKeys: [], month: '' })
 
   useEffect(() => {
     if (seasons.length > 0 && !activeSeason) {
@@ -51,16 +51,24 @@ export default function HomePage() {
   const { events, loading: loadingEvents, refresh, appendEvent } = useEvents(
     activeSeason?.id,
     {
-      categoryId: filters.categoryId || undefined,
-      keyword:    filters.keyword || undefined,
+      keyword: filters.keyword || undefined,
     }
   )
 
   const filteredEvents = useMemo(() => {
-    if (!filters.month) return events
-    const m = parseInt(filters.month)
-    return events.filter(ev => new Date(ev.start_date).getMonth() + 1 === m)
-  }, [events, filters.month])
+    const excludedSet = new Set(filters.excludedKeys)
+    return events.filter(ev => {
+      // Filtre mois
+      if (filters.month) {
+        const m = parseInt(filters.month)
+        if (new Date(ev.start_date).getMonth() + 1 !== m) return false
+      }
+      // Filtre catégories/sous-catégories (même format de clé que PlanningView)
+      const key = ev.subcategory_id ? `sub-${ev.subcategory_id}` : `cat-${ev.category_id}`
+      if (excludedSet.has(key)) return false
+      return true
+    })
+  }, [events, filters.month, filters.excludedKeys])
 
   // Événements du mois affiché dans la vue Calendrier (pour l'export "Vue en cours")
   // Un événement est inclus s'il chevauche le mois affiché (début ou fin dans le mois)
@@ -207,7 +215,7 @@ export default function HomePage() {
           </div>
 
           <div className="flex-1 min-w-0 relative">
-            <FilterBar categories={categories} filters={filters} onChange={setFilters} />
+            <FilterBar categories={categories} subcategories={subcategories} filters={filters} onChange={setFilters} />
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
@@ -313,7 +321,7 @@ export default function HomePage() {
             onEventDoubleClick={isAdmin ? (ev) => { setEditingEvent(ev); setShowForm(true) } : undefined}
             isAdmin={isAdmin}
             onDuplicateToWeek={isAdmin ? handleDuplicateToWeek : undefined}
-            filterCategoryId={filters.categoryId}
+            excludedKeys={filters.excludedKeys}
             filterMonth={filters.month}
             filterKeyword={filters.keyword}
           /></div>

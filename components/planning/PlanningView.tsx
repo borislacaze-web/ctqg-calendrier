@@ -33,7 +33,7 @@ interface Props {
   onEventClick: (event: CalendarEvent) => void
   onEventDoubleClick?: (event: CalendarEvent) => void
   onDuplicateToWeek?: (event: CalendarEvent, targetSaturday: Date) => Promise<void>
-  filterCategoryId?: string
+  excludedKeys?: string[]
   filterMonth?: string
   filterKeyword?: string
   isAdmin?: boolean
@@ -47,7 +47,7 @@ interface DragState {
 export default function PlanningView({
   events, categories, subcategories, season,
   onEventClick, onEventDoubleClick, onDuplicateToWeek,
-  filterCategoryId, filterMonth, filterKeyword,
+  excludedKeys, filterMonth, filterKeyword,
   isAdmin,
 }: Props) {
   const startYear = parseInt(season.name.split('/')[0])
@@ -225,15 +225,22 @@ export default function PlanningView({
   }, [])
 
   const columns = useMemo(() => {
+    const excludedSet = new Set(excludedKeys ?? [])
     const cols: { catId: string; catName: string; catColor: string; subId: string|null; subName: string|null; key: string }[] = []
-    const cats = filterCategoryId ? categories.filter(c => c.id === filterCategoryId) : categories
-    for (const cat of cats) {
+    for (const cat of categories) {
       const subs = subcategories.filter(s => s.category_id === cat.id && s.is_active)
-      if (subs.length === 0) cols.push({ catId: cat.id, catName: cat.name, catColor: cat.color, subId: null, subName: null, key: `cat-${cat.id}` })
-      else subs.forEach(sub => cols.push({ catId: cat.id, catName: cat.name, catColor: cat.color, subId: sub.id, subName: sub.name, key: `sub-${sub.id}` }))
+      if (subs.length === 0) {
+        const key = `cat-${cat.id}`
+        if (!excludedSet.has(key)) cols.push({ catId: cat.id, catName: cat.name, catColor: cat.color, subId: null, subName: null, key })
+      } else {
+        subs.forEach(sub => {
+          const key = `sub-${sub.id}`
+          if (!excludedSet.has(key)) cols.push({ catId: cat.id, catName: cat.name, catColor: cat.color, subId: sub.id, subName: sub.name, key })
+        })
+      }
     }
     return cols
-  }, [categories, subcategories, filterCategoryId])
+  }, [categories, subcategories, excludedKeys])
 
   const catGroups = useMemo(() => {
     const groups: { catId: string; catName: string; catColor: string; span: number }[] = []

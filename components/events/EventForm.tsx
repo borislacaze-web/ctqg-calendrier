@@ -1,6 +1,6 @@
 // components/events/EventForm.tsx
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -72,9 +72,12 @@ export default function EventForm({ event, season, categories, subcategories, on
     if (!event?.subcategory_id) setValue('subcategory_id', '')
   }, [watchedCategoryId, subcategories])
 
-  // Date de fin = date de début par défaut
+  // Date de fin = date de début tant que l'utilisateur n'a pas modifié la date
+  // de fin lui-même (création ET modification). Ça évite le cas où la date de
+  // fin reste antérieure à la nouvelle date de début après un changement.
+  const endDateTouched = useRef(false)
   useEffect(() => {
-    if (!event && watchedStartDate) {
+    if (!endDateTouched.current && watchedStartDate) {
       setValue('end_date', watchedStartDate)
     }
   }, [watchedStartDate])
@@ -88,6 +91,11 @@ export default function EventForm({ event, season, categories, subcategories, on
   }
 
   const onSubmit = async (data: FormData) => {
+    // Filet de sécurité : la date de fin ne peut jamais être antérieure à la date de début
+    if (new Date(data.end_date) < new Date(data.start_date)) {
+      data.end_date = data.start_date
+    }
+
     // Vérification hors saison : on bloque et demande confirmation
     if (isOutOfSeason(data) && !showOutOfSeasonWarning) {
       setPendingData(data)
@@ -227,8 +235,16 @@ export default function EventForm({ event, season, categories, subcategories, on
             </div>
             <div>
               <label className="label">Date de fin *</label>
-              <input {...register('end_date')} type="date" className="input" />
+              <input
+                {...register('end_date')}
+                type="date"
+                className="input"
+                onChange={(e) => { endDateTouched.current = true; register('end_date').onChange(e) }}
+              />
               {errors.end_date && <p className="text-red-500 text-xs mt-1">{errors.end_date.message}</p>}
+              <p className="text-[11px] text-slate-400 mt-1">
+                Se cale automatiquement sur la date de début tant qu'elle n'est pas modifiée manuellement.
+              </p>
             </div>
           </div>
 
