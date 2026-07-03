@@ -124,7 +124,6 @@ export default function PlanningView({
       allRows.forEach(r => {
         r.style.transition = 'none'
         r.style.overflow = 'hidden'
-        r.style.willChange = 'height'
         r.style.height = '0px'
         r.style.opacity = '0'
       })
@@ -142,7 +141,7 @@ export default function PlanningView({
             scroll[i].style.opacity = '1'
           }
           setTimeout(() => {
-            allRows.forEach(r => { r.style.transition = ''; r.style.overflow = ''; r.style.willChange = '' })
+            allRows.forEach(r => { r.style.transition = ''; r.style.overflow = '' })
             animatingMonthsRef.current.delete(monthKey)
             setEnteringMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
             syncRowHeights() // re-synchronise proprement une fois l'animation terminée
@@ -162,17 +161,12 @@ export default function PlanningView({
       const allRows = [...fixed, ...scroll]
 
       // 1. Fixer explicitement la hauteur actuelle (max fixe/scroll) = point de départ
-      //    Lectures d'abord, puis écritures groupées (évite le layout thrashing)
-      const currentHeights: number[] = []
+      allRows.forEach(r => { r.style.transition = 'none'; r.style.overflow = 'hidden' })
       for (let i = 0; i < len; i++) {
-        currentHeights[i] = Math.ceil(Math.max(
+        const h = `${Math.ceil(Math.max(
           fixed[i].getBoundingClientRect().height,
           scroll[i].getBoundingClientRect().height,
-        ))
-      }
-      allRows.forEach(r => { r.style.transition = 'none'; r.style.overflow = 'hidden'; r.style.willChange = 'height' })
-      for (let i = 0; i < len; i++) {
-        const h = `${currentHeights[i]}px`
+        ))}px`
         fixed[i].style.height = h
         scroll[i].style.height = h
       }
@@ -186,7 +180,6 @@ export default function PlanningView({
             r.style.opacity = '0'
           })
           setTimeout(() => {
-            allRows.forEach(r => { r.style.willChange = '' })
             animatingMonthsRef.current.delete(monthKey)
             setClosingMonths(prev => { const n = new Set(prev); n.delete(monthKey); return n })
             setCollapsed(prev => new Set(prev).add(monthKey))
@@ -637,7 +630,7 @@ export default function PlanningView({
         </div>
 
         {/* Corps scrollable droite : colonnes événements */}
-        <div id="scroll-body-ref" ref={scrollBodyRef} style={{ overflowX: 'scroll', overflowY: 'scroll', flex: 1, scrollbarGutter: 'stable' }}>
+        <div id="scroll-body-ref" ref={scrollBodyRef} style={{ overflowX: 'scroll', overflowY: 'auto', flex: 1 }}>
           <table ref={scrollBodyTableRef} style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
