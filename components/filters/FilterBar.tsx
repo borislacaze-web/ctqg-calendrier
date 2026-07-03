@@ -1,6 +1,6 @@
 // components/filters/FilterBar.tsx
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Search, X, Filter, ChevronDown, ChevronRight } from 'lucide-react'
 import type { Category, Subcategory } from '@/types'
 
@@ -20,6 +20,19 @@ interface Props {
 export default function FilterBar({ categories, subcategories, filters, onChange }: Props) {
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Ferme le panneau si on clique en dehors du bouton ET du panneau
+  useEffect(() => {
+    if (!open) return
+    const onClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [open])
 
   // Regroupe les sous-catégories actives par catégorie, avec le même système
   // de clés que PlanningView (cat-{id} pour les catégories sans sous-cat, sub-{id} sinon)
@@ -81,7 +94,7 @@ export default function FilterBar({ categories, subcategories, filters, onChange
   ]
 
   return (
-    <div className="relative flex flex-col sm:flex-row gap-2">
+    <div ref={containerRef} className="relative flex flex-col sm:flex-row gap-2">
       {/* Recherche texte */}
       <div className="relative flex-1 max-w-xs">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -215,13 +228,6 @@ export default function FilterBar({ categories, subcategories, filters, onChange
               })}
             </div>
           </div>
-
-          <button
-            onClick={() => setOpen(false)}
-            className="self-end btn-primary text-sm"
-          >
-            Appliquer
-          </button>
         </div>
       )}
     </div>
