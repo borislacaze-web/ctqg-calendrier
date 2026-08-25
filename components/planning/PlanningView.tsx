@@ -414,6 +414,13 @@ export default function PlanningView({
     runAutoScroll()
   }, [isAdmin, onDuplicateToWeek, createGhost, runAutoScroll])
 
+  // Miroir de dropTarget en ref : onUp doit lire sa valeur la plus récente sans
+  // que ça oblige à remonter dropTarget dans les dépendances de l'effet ci-dessous
+  // (sinon l'effet — et son nettoyage qui coupe l'auto-scroll — se relance à
+  // chaque mouvement de souris, puisque dropTarget change à chaque case survolée).
+  const dropTargetRef = useRef<string | null>(null)
+  useEffect(() => { dropTargetRef.current = dropTarget }, [dropTarget])
+
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       const ds = dragRef.current; if (!ds) return
@@ -429,7 +436,7 @@ export default function PlanningView({
       stopAutoScroll()
       ds.ghost.remove(); dragRef.current = null
       document.body.style.userSelect = ''; document.body.style.cursor = ''
-      const satStr = dropTarget; setDropTarget(null)
+      const satStr = dropTargetRef.current; setDropTarget(null)
       if (!satStr || !onDuplicateToWeek) return
       const targetSaturday = new Date(satStr + 'T12:00:00')
       setDuplicating(true)
@@ -442,7 +449,7 @@ export default function PlanningView({
       stopAutoScroll()
       window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp)
     }
-  }, [dropTarget, onDuplicateToWeek])
+  }, [onDuplicateToWeek])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
