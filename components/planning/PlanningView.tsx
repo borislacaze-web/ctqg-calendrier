@@ -366,18 +366,58 @@ export default function PlanningView({
     return ghost
   }, [])
 
+  // Défilement automatique pendant le glisser : la case cible (une semaine plus
+  // loin dans la saison) peut être hors de la zone visible. Sans ça, on ne peut
+  // jamais l'atteindre ni la déposer dessus.
+  const lastMouseRef = useRef({ x: 0, y: 0 })
+  const autoScrollFrameRef = useRef<number | null>(null)
+
+  const runAutoScroll = useCallback(() => {
+    if (autoScrollFrameRef.current !== null) return // déjà en cours
+    const EDGE = 70       // zone sensible depuis le bord, en px
+    const MAX_SPEED = 16  // vitesse max, en px par frame
+    const step = () => {
+      if (!dragRef.current) { autoScrollFrameRef.current = null; return }
+      const sb = scrollBodyRef.current
+      if (sb) {
+        const rect = sb.getBoundingClientRect()
+        const { x, y } = lastMouseRef.current
+        let vSpeed = 0
+        if (y < rect.top + EDGE) vSpeed = -MAX_SPEED * (1 - Math.max(0, y - rect.top) / EDGE)
+        else if (y > rect.bottom - EDGE) vSpeed = MAX_SPEED * (1 - Math.max(0, rect.bottom - y) / EDGE)
+        let hSpeed = 0
+        if (x < rect.left + EDGE) hSpeed = -MAX_SPEED * (1 - Math.max(0, x - rect.left) / EDGE)
+        else if (x > rect.right - EDGE) hSpeed = MAX_SPEED * (1 - Math.max(0, rect.right - x) / EDGE)
+        if (vSpeed !== 0) sb.scrollTop += vSpeed
+        if (hSpeed !== 0) sb.scrollLeft += hSpeed
+      }
+      autoScrollFrameRef.current = requestAnimationFrame(step)
+    }
+    autoScrollFrameRef.current = requestAnimationFrame(step)
+  }, [])
+
+  const stopAutoScroll = useCallback(() => {
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current)
+      autoScrollFrameRef.current = null
+    }
+  }, [])
+
   const handleBadgeMouseDown = useCallback((e: React.MouseEvent, event: CalendarEvent) => {
     if (!e.ctrlKey || !isAdmin || !onDuplicateToWeek) return
     e.preventDefault(); e.stopPropagation()
     const ghost = createGhost(event, e.clientX, e.clientY)
     dragRef.current = { event, ghost }
+    lastMouseRef.current = { x: e.clientX, y: e.clientY }
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'copy'
-  }, [isAdmin, onDuplicateToWeek, createGhost])
+    runAutoScroll()
+  }, [isAdmin, onDuplicateToWeek, createGhost, runAutoScroll])
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       const ds = dragRef.current; if (!ds) return
+      lastMouseRef.current = { x: e.clientX, y: e.clientY }
       ds.ghost.style.left = `${e.clientX+14}px`
       ds.ghost.style.top  = `${e.clientY-10}px`
       const el = document.elementFromPoint(e.clientX, e.clientY)
@@ -386,6 +426,7 @@ export default function PlanningView({
     }
     const onUp = async () => {
       const ds = dragRef.current; if (!ds) return
+      stopAutoScroll()
       ds.ghost.remove(); dragRef.current = null
       document.body.style.userSelect = ''; document.body.style.cursor = ''
       const satStr = dropTarget; setDropTarget(null)
@@ -397,7 +438,10 @@ export default function PlanningView({
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    return () => {
+      stopAutoScroll()
+      window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp)
+    }
   }, [dropTarget, onDuplicateToWeek])
 
   useEffect(() => {
