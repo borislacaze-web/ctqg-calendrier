@@ -1,6 +1,6 @@
 // app/page.tsx
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Plus, Download, FileSpreadsheet, FileText, LayoutList, Table2, CalendarDays } from 'lucide-react'
 import Navbar from '@/components/layout/Navbar'
 import SeasonSelector from '@/components/layout/SeasonSelector'
@@ -10,6 +10,7 @@ import ListView from '@/components/planning/ListView'
 import CalendarView from '@/components/planning/CalendarView'
 import EventModal from '@/components/events/EventModal'
 import EventForm from '@/components/events/EventForm'
+import BulkActionsBar from '@/components/events/BulkActionsBar'
 import {
   useSeasons, useCategories, useSubcategories,
   useEvents, useCurrentUser
@@ -20,7 +21,7 @@ import { exportToPDF } from '@/lib/pdf-utils'
 import { exportToImage, exportCalendarToImage } from '@/lib/image-export'
 import { addDays, format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import type { CalendarEvent, Season } from '@/types'
+import type { CalendarEvent, EventStatus, Season } from '@/types'
 import toast from 'react-hot-toast'
 
 type View = 'planning' | 'list' | 'calendar'
@@ -43,6 +44,8 @@ export default function HomePage() {
   const [exportingImage, setExportingImage] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const [filters, setFilters] = useState<Filters>({ keyword: '', excludedKeys: [], month: '' })
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
 
   useEffect(() => {
     if (seasons.length > 0 && !activeSeason) {
@@ -50,6 +53,10 @@ export default function HomePage() {
       setActiveSeason(active)
     }
   }, [seasons])
+
+  // La sélection multiple ne doit pas survivre à un changement de saison
+  // (les événements sélectionnés n'existent plus dans le nouveau contexte)
+  useEffect(() => { setSelectedEventIds(new Set()) }, [activeSeason?.id])
 
   const { events, loading: loadingEvents, refresh, appendEvent } = useEvents(
     activeSeason?.id,
@@ -186,6 +193,51 @@ export default function HomePage() {
         refresh() // fallback
       }
       toast.success(`✔ Dupliqué → sem. du ${format(targetSaturday, 'dd/MM/yyyy')}`)
+    }
+  }
+
+  // ── Sélection multiple (Ctrl+clic dans le planning) ──
+  // useCallback pour garder une référence stable : PlanningView s'appuie dessus
+  // via une ref interne, mais autant éviter de recréer la fonction à chaque render.
+  const toggleEventSelection = useCallback((id: string) => {
+    setSelectedEventIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const clearSelection = () => setSelectedEventIds(new Set())
+
+  const handleBulkStatusChange = async (status: EventStatus) => {
+    const ids = Array.from(selectedEventIds)
+    if (ids.length === 0) return
+    setBulkSaving(true)
+    const { error } = await supabase.from('events').update({ status }).in('id', ids)
+    setBulkSaving(false)
+    if (error) {
+      toast.error('Erreur lors de la mise à jour du statut')
+    } else {
+      toast.success(`Statut mis à jour pour ${ids.length} événement${ids.length > 1 ? 's' : ''}`)
+      clearSelection()
+      refresh()
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedEventIds)
+    if (ids.length === 0) return
+    if (!confirm(`Supprimer ${ids.length} événement${ids.length > 1 ? 's' : ''} sélectionné${ids.length > 1 ? 's' : ''} ? Cette action est irréversible.`)) return
+    setBulkSaving(true)
+    const { error } = await supabase.from('events').delete().in('id', ids)
+    setBulkSaving(false)
+    if (error) {
+      toast.error('Erreur lors de la suppression groupée')
+    } else {
+      toast.success(`${ids.length} événement${ids.length > 1 ? 's' : ''} supprimé${ids.length > 1 ? 's' : ''}`)
+      clearSelection()
+      refresh()
     }
   }
 
@@ -339,6 +391,8 @@ export default function HomePage() {
             onCellDoubleClick={isAdmin ? handleCellDoubleClick : undefined}
             isAdmin={isAdmin}
             onDuplicateToWeek={isAdmin ? handleDuplicateToWeek : undefined}
+            selectedIds={isAdmin ? selectedEventIds : undefined}
+            onToggleSelect={isAdmin ? toggleEventSelection : undefined}
             excludedKeys={filters.excludedKeys}
             filterMonth={filters.month}
             filterKeyword={filters.keyword}
@@ -401,6 +455,14 @@ export default function HomePage() {
           }}
         />
       )}
+
+      <BulkActionsBar
+        count={selectedEventIds.size}
+        saving={bulkSaving}
+        onStatusChange={handleBulkStatusChange}
+        onDelete={handleBulkDelete}
+        onClear={clearSelection}
+      />
     </div>
   )
 }

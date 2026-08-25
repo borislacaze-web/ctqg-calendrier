@@ -34,6 +34,8 @@ interface Props {
   onEventDoubleClick?: (event: CalendarEvent) => void
   onCellDoubleClick?: (date: Date, categoryId: string, subcategoryId: string | null) => void
   onDuplicateToWeek?: (event: CalendarEvent, targetSaturday: Date) => Promise<void>
+  selectedIds?: Set<string>
+  onToggleSelect?: (eventId: string) => void
   excludedKeys?: string[]
   filterMonth?: string
   filterKeyword?: string
@@ -48,6 +50,7 @@ interface DragState {
 export default function PlanningView({
   events, categories, subcategories, season,
   onEventClick, onEventDoubleClick, onCellDoubleClick, onDuplicateToWeek,
+  selectedIds, onToggleSelect,
   excludedKeys, filterMonth, filterKeyword,
   isAdmin,
 }: Props) {
@@ -429,16 +432,20 @@ export default function PlanningView({
     }
   }, [])
 
+  // Distinction Ctrl+clic (bascule la sélection) / Ctrl+glisser (duplique) : le
+  // mousedown ne fait qu'enregistrer une intention ; ce n'est que si la souris
+  // dépasse un petit seuil de déplacement, tout en restant enfoncée, qu'on la
+  // convertit en glisser (création du fantôme). Si elle est relâchée avant, on
+  // considère qu'il s'agissait d'un simple clic et on bascule la sélection.
+  const DRAG_THRESHOLD = 6 // px
+  const pendingClickRef = useRef<{ event: CalendarEvent; startX: number; startY: number } | null>(null)
+
   const handleBadgeMouseDown = useCallback((e: React.MouseEvent, event: CalendarEvent) => {
-    if (!e.ctrlKey || !isAdmin || !onDuplicateToWeek) return
+    if (!e.ctrlKey || !isAdmin) return
     e.preventDefault(); e.stopPropagation()
-    const ghost = createGhost(event, e.clientX, e.clientY)
-    dragRef.current = { event, ghost }
+    pendingClickRef.current = { event, startX: e.clientX, startY: e.clientY }
     lastMouseRef.current = { x: e.clientX, y: e.clientY }
-    document.body.style.userSelect = 'none'
-    document.body.style.cursor = 'copy'
-    runAutoScroll()
-  }, [isAdmin, onDuplicateToWeek, createGhost, runAutoScroll])
+  }, [isAdmin])
 
   // Miroir de dropTarget en ref : onUp doit lire sa valeur la plus récente sans
   // que ça oblige à remonter dropTarget dans les dépendances de l'effet ci-dessous
@@ -447,10 +454,33 @@ export default function PlanningView({
   const dropTargetRef = useRef<string | null>(null)
   useEffect(() => { dropTargetRef.current = dropTarget }, [dropTarget])
 
+  // Miroirs en ref des callbacks fournis par le parent : l'effet mousemove/mouseup
+  // ci-dessous n'a ainsi besoin d'AUCUNE dépendance changeante (le parent ne les
+  // mémoïse pas avec useCallback, donc leur référence change à chaque render) —
+  // on a déjà eu ce bug une fois avec dropTarget, on ne le reproduit pas ici.
+  const onDuplicateToWeekRef = useRef(onDuplicateToWeek)
+  useEffect(() => { onDuplicateToWeekRef.current = onDuplicateToWeek })
+  const onToggleSelectRef = useRef(onToggleSelect)
+  useEffect(() => { onToggleSelectRef.current = onToggleSelect })
+
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      const ds = dragRef.current; if (!ds) return
       lastMouseRef.current = { x: e.clientX, y: e.clientY }
+
+      // Promotion clic → glisser dès que le seuil de déplacement est dépassé
+      if (!dragRef.current && pendingClickRef.current && onDuplicateToWeekRef.current) {
+        const { event, startX, startY } = pendingClickRef.current
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_THRESHOLD) {
+          const ghost = createGhost(event, e.clientX, e.clientY)
+          dragRef.current = { event, ghost }
+          pendingClickRef.current = null
+          document.body.style.userSelect = 'none'
+          document.body.style.cursor = 'copy'
+          runAutoScroll()
+        }
+      }
+
+      const ds = dragRef.current; if (!ds) return
       ds.ghost.style.left = `${e.clientX+14}px`
       ds.ghost.style.top  = `${e.clientY-10}px`
       const el = document.elementFromPoint(e.clientX, e.clientY)
@@ -458,16 +488,27 @@ export default function PlanningView({
       setDropTarget(cell?.dataset.saturday ?? null)
     }
     const onUp = async () => {
-      const ds = dragRef.current; if (!ds) return
-      stopAutoScroll()
-      ds.ghost.remove(); dragRef.current = null
-      document.body.style.userSelect = ''; document.body.style.cursor = ''
-      const satStr = dropTargetRef.current; setDropTarget(null)
-      if (!satStr || !onDuplicateToWeek) return
-      const targetSaturday = new Date(satStr + 'T12:00:00')
-      setDuplicating(true)
-      try { await onDuplicateToWeek(ds.event, targetSaturday) }
-      finally { setDuplicating(false) }
+      // Glisser abouti → dupliquer sur la case cible
+      const ds = dragRef.current
+      if (ds) {
+        stopAutoScroll()
+        ds.ghost.remove(); dragRef.current = null
+        document.body.style.userSelect = ''; document.body.style.cursor = ''
+        const satStr = dropTargetRef.current; setDropTarget(null)
+        pendingClickRef.current = null
+        if (!satStr || !onDuplicateToWeekRef.current) return
+        const targetSaturday = new Date(satStr + 'T12:00:00')
+        setDuplicating(true)
+        try { await onDuplicateToWeekRef.current(ds.event, targetSaturday) }
+        finally { setDuplicating(false) }
+        return
+      }
+      // Relâché sans jamais dépasser le seuil → simple Ctrl+clic : sélection
+      const pending = pendingClickRef.current
+      if (pending) {
+        pendingClickRef.current = null
+        onToggleSelectRef.current?.(pending.event.id)
+      }
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -475,14 +516,18 @@ export default function PlanningView({
       stopAutoScroll()
       window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp)
     }
-  }, [onDuplicateToWeek])
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Control' && dragRef.current) {
-        dragRef.current.ghost.remove(); dragRef.current = null
-        document.body.style.userSelect = ''; document.body.style.cursor = ''
-        setDropTarget(null)
+      if (e.key === 'Control') {
+        pendingClickRef.current = null
+        if (dragRef.current) {
+          stopAutoScroll()
+          dragRef.current.ghost.remove(); dragRef.current = null
+          document.body.style.userSelect = ''; document.body.style.cursor = ''
+          setDropTarget(null)
+        }
       }
     }
     window.addEventListener('keyup', onKey)
@@ -683,6 +728,7 @@ export default function PlanningView({
                         onDoubleClick={isAdmin && onEventDoubleClick ? () => onEventDoubleClick(ev) : undefined}
                         onMouseDown={(e) => handleBadgeMouseDown(e, ev)}
                         isAdmin={isAdmin}
+                        selected={selectedIds?.has(ev.id)}
                       />
                     ))}
                     </div>
@@ -793,19 +839,23 @@ export default function PlanningView({
 }
 
 function EventBadge({
-  event, onClick, onDoubleClick, onMouseDown, isAdmin,
+  event, onClick, onDoubleClick, onMouseDown, isAdmin, selected,
 }: {
   event: CalendarEvent
   onClick: () => void
   onDoubleClick?: () => void
   onMouseDown?: (e: React.MouseEvent) => void
   isAdmin?: boolean
+  selected?: boolean
 }) {
   const color = STATUS_COLOR[event.status] ?? '#94a3b8'
   const title = event.subcategory ? `${event.subcategory.name} — ${event.title}` : event.title
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent) => {
+    // Le Ctrl+clic est géré au niveau du mousedown/mouseup (sélection multiple
+    // ou glisser-déposer) : on ne doit pas en plus ouvrir la fiche de l'événement.
+    if (e.ctrlKey) return
     if (!onDoubleClick) { onClick(); return }
     if (clickTimer.current) {
       clearTimeout(clickTimer.current); clickTimer.current = null
@@ -820,17 +870,19 @@ function EventBadge({
       onClick={handleClick}
       onMouseDown={onMouseDown}
       onDoubleClick={e => e.stopPropagation()}
-      title={`${title}${event.location ? ` · ${event.location}` : ''}`}
+      title={`${title}${event.location ? ` · ${event.location}` : ''}${isAdmin ? ' · Ctrl+clic pour sélectionner' : ''}`}
       style={{
         display: 'block', width: '100%', textAlign: 'left',
-        background: color+'22', border: `1px solid ${color}55`,
-        borderLeft: `3px solid ${color}`, color: '#1e293b',
+        background: selected ? '#bfdbfe' : color+'22',
+        border: selected ? '1px solid #2563eb' : `1px solid ${color}55`,
+        borderLeft: `3px solid ${selected ? '#2563eb' : color}`, color: '#1e293b',
         padding: '2px 4px', marginBottom: '2px', borderRadius: '2px',
         fontSize: '10px', lineHeight: '1.3',
         cursor: isAdmin ? 'grab' : 'pointer',
         overflow: 'hidden',
         textDecoration: event.status === 'annule' ? 'line-through' : 'none',
         opacity: event.status === 'annule' ? 0.6 : 1,
+        boxShadow: selected ? '0 0 0 1px #2563eb inset' : 'none',
       }}
     >
       <span style={{ color, fontWeight: 600, fontSize: '9px', marginRight: '3px' }}>{formatShortDate(event.start_date)}</span>
