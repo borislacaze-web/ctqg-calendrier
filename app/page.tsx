@@ -140,7 +140,7 @@ export default function HomePage() {
 
 
   // Duplication silencieuse par Ctrl+drag depuis PlanningView
-  const handleDuplicateToWeek = async (event: CalendarEvent, targetSaturday: Date) => {
+  const handleDuplicateToWeek = async (event: CalendarEvent, targetSaturday: Date, targetCategoryId: string, targetSubcategoryId: string | null) => {
     const origStart = new Date(event.start_date)
     const origEnd   = new Date(event.end_date)
     const duration  = Math.round((origEnd.getTime() - origStart.getTime()) / 86400000)
@@ -159,8 +159,8 @@ export default function HomePage() {
 
     const { error } = await supabase.from('events').insert({
       season_id:        event.season_id,
-      category_id:      event.category_id,
-      subcategory_id:   event.subcategory_id,
+      category_id:      targetCategoryId,
+      subcategory_id:   targetSubcategoryId,
       title:            event.title,
       description:      event.description,
       location:         event.location,

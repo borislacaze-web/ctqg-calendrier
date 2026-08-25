@@ -33,7 +33,7 @@ interface Props {
   onEventClick: (event: CalendarEvent) => void
   onEventDoubleClick?: (event: CalendarEvent) => void
   onCellDoubleClick?: (date: Date, categoryId: string, subcategoryId: string | null) => void
-  onDuplicateToWeek?: (event: CalendarEvent, targetSaturday: Date) => Promise<void>
+  onDuplicateToWeek?: (event: CalendarEvent, targetSaturday: Date, targetCategoryId: string, targetSubcategoryId: string | null) => Promise<void>
   selectedIds?: Set<string>
   onToggleSelect?: (eventId: string) => void
   excludedKeys?: string[]
@@ -375,7 +375,7 @@ export default function PlanningView({
 
   // ── Drag-to-duplicate ──
   const dragRef = useRef<DragState | null>(null)
-  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ saturday: string; catId: string; subId: string | null } | null>(null)
   const [duplicating, setDuplicating] = useState(false)
 
   const createGhost = useCallback((event: CalendarEvent, x: number, y: number) => {
@@ -451,7 +451,7 @@ export default function PlanningView({
   // que ça oblige à remonter dropTarget dans les dépendances de l'effet ci-dessous
   // (sinon l'effet — et son nettoyage qui coupe l'auto-scroll — se relance à
   // chaque mouvement de souris, puisque dropTarget change à chaque case survolée).
-  const dropTargetRef = useRef<string | null>(null)
+  const dropTargetRef = useRef<{ saturday: string; catId: string; subId: string | null } | null>(null)
   useEffect(() => { dropTargetRef.current = dropTarget }, [dropTarget])
 
   // Miroirs en ref des callbacks fournis par le parent : l'effet mousemove/mouseup
@@ -485,7 +485,11 @@ export default function PlanningView({
       ds.ghost.style.top  = `${e.clientY-10}px`
       const el = document.elementFromPoint(e.clientX, e.clientY)
       const cell = el?.closest('[data-saturday]') as HTMLElement | null
-      setDropTarget(cell?.dataset.saturday ?? null)
+      if (cell?.dataset.saturday && cell.dataset.catId) {
+        setDropTarget({ saturday: cell.dataset.saturday, catId: cell.dataset.catId, subId: cell.dataset.subId || null })
+      } else {
+        setDropTarget(null)
+      }
     }
     const onUp = async () => {
       // Glisser abouti → dupliquer sur la case cible
@@ -494,12 +498,12 @@ export default function PlanningView({
         stopAutoScroll()
         ds.ghost.remove(); dragRef.current = null
         document.body.style.userSelect = ''; document.body.style.cursor = ''
-        const satStr = dropTargetRef.current; setDropTarget(null)
+        const dt = dropTargetRef.current; setDropTarget(null)
         pendingClickRef.current = null
-        if (!satStr || !onDuplicateToWeekRef.current) return
-        const targetSaturday = new Date(satStr + 'T12:00:00')
+        if (!dt || !onDuplicateToWeekRef.current) return
+        const targetSaturday = new Date(dt.saturday + 'T12:00:00')
         setDuplicating(true)
-        try { await onDuplicateToWeekRef.current(ds.event, targetSaturday) }
+        try { await onDuplicateToWeekRef.current(ds.event, targetSaturday, dt.catId, dt.subId) }
         finally { setDuplicating(false) }
         return
       }
@@ -701,11 +705,12 @@ export default function PlanningView({
           {(!isCol || isClosing) && monthWeeks.map(week => {
             const isHol = isSchoolHoliday(week.monday, season.name)
             const satStr = format(week.saturday, 'yyyy-MM-dd')
-            const isDropTarget = dropTarget === satStr
             return (
               <tr key={`ws-${week.week_number}`} data-month={monthKey}>
-                {columns.map(col => (
-                  <td key={col.key} data-saturday={satStr}
+                {columns.map(col => {
+                const isDropTarget = dropTarget?.saturday === satStr && dropTarget?.catId === col.catId && dropTarget?.subId === col.subId
+                return (
+                  <td key={col.key} data-saturday={satStr} data-cat-id={col.catId} data-sub-id={col.subId ?? ''}
                     onDoubleClick={onCellDoubleClick ? () => onCellDoubleClick(week.saturday, col.catId, col.subId) : undefined}
                     title={onCellDoubleClick ? 'Double-clic pour créer un événement' : undefined}
                     style={{
@@ -733,7 +738,7 @@ export default function PlanningView({
                     ))}
                     </div>
                   </td>
-                ))}
+                )})}
               </tr>
             )
           })}
