@@ -27,12 +27,19 @@ export default function ViewportManager() {
         content = 'width=device-width, minimum-scale=0.2, maximum-scale=10, user-scalable=yes'
       }
 
-      const old = document.querySelector('meta[name="viewport"]')
-      if (old) old.remove()
-      const meta = document.createElement('meta')
-      meta.name = 'viewport'
-      meta.content = content
-      document.head.appendChild(meta)
+      // On modifie l'attribut de la balise existante (gérée par Next.js) au lieu de la
+      // supprimer/recréer : la supprimer casse la référence que React garde vers ce nœud
+      // et provoque un crash "removeChild / parentNode is null" au prochain nettoyage React
+      // (typiquement juste après l'hydratation, dès le premier chargement d'une page).
+      const existing = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null
+      if (existing) {
+        existing.content = content
+      } else {
+        const meta = document.createElement('meta')
+        meta.name = 'viewport'
+        meta.content = content
+        document.head.appendChild(meta)
+      }
     }
 
     apply()
