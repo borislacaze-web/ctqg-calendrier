@@ -1,6 +1,6 @@
 // components/events/EventForm.tsx
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -46,7 +46,6 @@ export default function EventForm({
   const [saving, setSaving] = useState(false)
   const [showOutOfSeasonWarning, setShowOutOfSeasonWarning] = useState(false)
   const [pendingData, setPendingData] = useState<FormData | null>(null)
-  const [filteredSubs, setFilteredSubs] = useState<Subcategory[]>([])
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const supabase = createClient()
@@ -74,19 +73,26 @@ export default function EventForm({
   const watchedCategoryId = watch('category_id')
   const watchedStartDate = watch('start_date')
 
-  // Mise à jour des sous-catégories quand la catégorie change.
-  // On ne réinitialise jamais la sous-catégorie au tout premier rendu (elle vient
-  // alors soit de l'événement édité, soit de la case double-cliquée dans le planning) —
-  // seulement quand l'utilisateur change la catégorie lui-même par la suite.
+  // Calculée directement au rendu (et non via useEffect) : la liste doit déjà
+  // contenir la bonne sous-catégorie dès le tout premier rendu, sinon le <select>
+  // non contrôlé de react-hook-form ne trouve pas l'option correspondante au montage
+  // et retombe sur "Aucune" sans jamais se corriger ensuite.
+  const filteredSubs = useMemo(
+    () => subcategories.filter(s => s.category_id === watchedCategoryId),
+    [watchedCategoryId, subcategories]
+  )
+
+  // Réinitialise la sous-catégorie quand l'utilisateur change la catégorie lui-même —
+  // mais jamais au tout premier rendu (elle vient alors soit de l'événement édité,
+  // soit de la case double-cliquée dans le planning).
   const isFirstCategoryRun = useRef(true)
   useEffect(() => {
-    setFilteredSubs(subcategories.filter(s => s.category_id === watchedCategoryId))
     if (isFirstCategoryRun.current) {
       isFirstCategoryRun.current = false
       return
     }
     setValue('subcategory_id', '')
-  }, [watchedCategoryId, subcategories])
+  }, [watchedCategoryId])
 
   // Date de fin = date de début tant que l'utilisateur n'a pas modifié la date
   // de fin lui-même (création ET modification). Ça évite le cas où la date de
