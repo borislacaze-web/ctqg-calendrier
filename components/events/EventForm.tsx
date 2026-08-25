@@ -30,11 +30,19 @@ interface Props {
   season: Season
   categories: Category[]
   subcategories: Subcategory[]
+  // Pré-remplissage à la création (ex: double-clic sur une case du planning)
+  defaultDate?: string
+  defaultCategoryId?: string
+  defaultSubcategoryId?: string | null
   onSaved: () => void
   onClose: () => void
 }
 
-export default function EventForm({ event, season, categories, subcategories, onSaved, onClose }: Props) {
+export default function EventForm({
+  event, season, categories, subcategories,
+  defaultDate, defaultCategoryId, defaultSubcategoryId,
+  onSaved, onClose,
+}: Props) {
   const [saving, setSaving] = useState(false)
   const [showOutOfSeasonWarning, setShowOutOfSeasonWarning] = useState(false)
   const [pendingData, setPendingData] = useState<FormData | null>(null)
@@ -50,10 +58,10 @@ export default function EventForm({ event, season, categories, subcategories, on
     resolver: zodResolver(schema),
     defaultValues: {
       title:           event?.title ?? '',
-      category_id:     event?.category_id ?? '',
-      subcategory_id:  event?.subcategory_id ?? '',
-      start_date:      event?.start_date ?? '',
-      end_date:        event?.end_date ?? event?.start_date ?? '',
+      category_id:     event?.category_id ?? defaultCategoryId ?? '',
+      subcategory_id:  event?.subcategory_id ?? defaultSubcategoryId ?? '',
+      start_date:      event?.start_date ?? defaultDate ?? '',
+      end_date:        event?.end_date ?? event?.start_date ?? defaultDate ?? '',
       description:     event?.description ?? '',
       location:        event?.location ?? '',
       target_audience: event?.target_audience ?? '',
@@ -66,10 +74,18 @@ export default function EventForm({ event, season, categories, subcategories, on
   const watchedCategoryId = watch('category_id')
   const watchedStartDate = watch('start_date')
 
-  // Mise à jour des sous-catégories quand la catégorie change
+  // Mise à jour des sous-catégories quand la catégorie change.
+  // On ne réinitialise jamais la sous-catégorie au tout premier rendu (elle vient
+  // alors soit de l'événement édité, soit de la case double-cliquée dans le planning) —
+  // seulement quand l'utilisateur change la catégorie lui-même par la suite.
+  const isFirstCategoryRun = useRef(true)
   useEffect(() => {
     setFilteredSubs(subcategories.filter(s => s.category_id === watchedCategoryId))
-    if (!event?.subcategory_id) setValue('subcategory_id', '')
+    if (isFirstCategoryRun.current) {
+      isFirstCategoryRun.current = false
+      return
+    }
+    setValue('subcategory_id', '')
   }, [watchedCategoryId, subcategories])
 
   // Date de fin = date de début tant que l'utilisateur n'a pas modifié la date

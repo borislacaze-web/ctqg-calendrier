@@ -37,6 +37,9 @@ export default function HomePage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null | undefined>(undefined)
   const [showForm, setShowForm] = useState(false)
+  const [defaultDate, setDefaultDate] = useState<string | undefined>(undefined)
+  const [defaultCategoryId, setDefaultCategoryId] = useState<string | undefined>(undefined)
+  const [defaultSubcategoryId, setDefaultSubcategoryId] = useState<string | undefined>(undefined)
   const [exportingImage, setExportingImage] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
   const [filters, setFilters] = useState<Filters>({ keyword: '', excludedKeys: [], month: '' })
@@ -97,6 +100,20 @@ export default function HomePage() {
       toast.success('Événement supprimé')
       refresh()
     }
+  }
+
+  // Ouvre le formulaire de création, avec date/catégorie/sous-catégorie par défaut
+  // optionnelles (ex: double-clic sur une case du planning).
+  const openNewEventForm = (date?: Date, categoryId?: string, subcategoryId?: string | null) => {
+    setEditingEvent(null)
+    setDefaultDate(date ? format(date, 'yyyy-MM-dd') : undefined)
+    setDefaultCategoryId(categoryId)
+    setDefaultSubcategoryId(subcategoryId ?? undefined)
+    setShowForm(true)
+  }
+
+  const handleCellDoubleClick = (date: Date, categoryId: string, subcategoryId: string | null) => {
+    openNewEventForm(date, categoryId, subcategoryId)
   }
 
   const handleDuplicate = (event: CalendarEvent) => {
@@ -280,7 +297,7 @@ export default function HomePage() {
 
             {isAdmin && (
               <button
-                onClick={() => { setEditingEvent(null); setShowForm(true) }}
+                onClick={() => openNewEventForm()}
                 className="btn-primary text-sm"
               >
                 <Plus className="w-4 h-4" />
@@ -319,6 +336,7 @@ export default function HomePage() {
             season={activeSeason}
             onEventClick={setSelectedEvent}
             onEventDoubleClick={isAdmin ? (ev) => { setEditingEvent(ev); setShowForm(true) } : undefined}
+            onCellDoubleClick={isAdmin ? handleCellDoubleClick : undefined}
             isAdmin={isAdmin}
             onDuplicateToWeek={isAdmin ? handleDuplicateToWeek : undefined}
             excludedKeys={filters.excludedKeys}
@@ -370,8 +388,17 @@ export default function HomePage() {
           season={activeSeason}
           categories={categories}
           subcategories={subcategories}
+          defaultDate={defaultDate}
+          defaultCategoryId={defaultCategoryId}
+          defaultSubcategoryId={defaultSubcategoryId}
           onSaved={refresh}
-          onClose={() => { setShowForm(false); setEditingEvent(undefined) }}
+          onClose={() => {
+            setShowForm(false)
+            setEditingEvent(undefined)
+            setDefaultDate(undefined)
+            setDefaultCategoryId(undefined)
+            setDefaultSubcategoryId(undefined)
+          }}
         />
       )}
     </div>

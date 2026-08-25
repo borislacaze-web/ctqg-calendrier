@@ -32,6 +32,7 @@ interface Props {
   season: Season
   onEventClick: (event: CalendarEvent) => void
   onEventDoubleClick?: (event: CalendarEvent) => void
+  onCellDoubleClick?: (date: Date, categoryId: string, subcategoryId: string | null) => void
   onDuplicateToWeek?: (event: CalendarEvent, targetSaturday: Date) => Promise<void>
   excludedKeys?: string[]
   filterMonth?: string
@@ -46,7 +47,7 @@ interface DragState {
 
 export default function PlanningView({
   events, categories, subcategories, season,
-  onEventClick, onEventDoubleClick, onDuplicateToWeek,
+  onEventClick, onEventDoubleClick, onCellDoubleClick, onDuplicateToWeek,
   excludedKeys, filterMonth, filterKeyword,
   isAdmin,
 }: Props) {
@@ -582,7 +583,10 @@ export default function PlanningView({
             return (
               <tr key={`ws-${week.week_number}`} data-month={monthKey}>
                 {columns.map(col => (
-                  <td key={col.key} data-saturday={satStr} style={{
+                  <td key={col.key} data-saturday={satStr}
+                    onDoubleClick={onCellDoubleClick ? () => onCellDoubleClick(week.saturday, col.catId, col.subId) : undefined}
+                    title={onCellDoubleClick ? 'Double-clic pour créer un événement' : undefined}
+                    style={{
                     border: '1px solid #dde3ec',
                     borderLeft: `2px solid ${col.catColor}44`,
                     padding: '3px', verticalAlign: 'top',
@@ -591,6 +595,7 @@ export default function PlanningView({
                     outlineOffset: '-2px',
                     transition: 'background 0.1s',
                     width: W_COL, minWidth: W_COL,
+                    cursor: onCellDoubleClick ? 'copy' : undefined,
                   }}>
                     <div className="cell-inner" style={{ overflow: 'hidden' }}>
                     {getColEvs(week.events, col).map(ev => (
@@ -737,6 +742,7 @@ function EventBadge({
     <button
       onClick={handleClick}
       onMouseDown={onMouseDown}
+      onDoubleClick={e => e.stopPropagation()}
       title={`${title}${event.location ? ` · ${event.location}` : ''}`}
       style={{
         display: 'block', width: '100%', textAlign: 'left',
