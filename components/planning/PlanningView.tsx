@@ -1,6 +1,6 @@
 // components/planning/PlanningView.tsx
 'use client'
-import { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
+import { Fragment, useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { format, isBefore, startOfMonth, parseISO, addDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ChevronDown } from 'lucide-react'
@@ -333,13 +333,24 @@ export default function PlanningView({
     }
   }, [])
 
-  // Sync hauteurs après chaque render ET si le contenu change de taille
+  // Sync hauteurs après chaque render ET si le contenu change de taille.
+  // On saute ce travail pendant un glisser-déposer actif : rien dans les données
+  // ou le contenu des lignes ne change pendant un drag (seulement au drop), et
+  // le réappliquer sans arrêt pendant les re-renders très fréquents du drag
+  // (un par mouvement de souris, via dropTarget) perturbait l'auto-scroll —
+  // le navigateur "corrige" le scroll pour compenser les changements de hauteur
+  // qu'il détecte ailleurs dans la zone scrollable (scroll anchoring), ce qui
+  // provoquait des retours en arrière intempestifs pendant le glisser.
   useEffect(() => {
+    if (dragRef.current) return
     syncHeaderHeight()
     syncRowHeights()
     const scrollTable = scrollBodyTableRef.current
     if (!scrollTable) return
-    const ro = new ResizeObserver(() => { syncHeaderHeight(); syncRowHeights() })
+    const ro = new ResizeObserver(() => {
+      if (dragRef.current) return
+      syncHeaderHeight(); syncRowHeights()
+    })
     ro.observe(scrollTable)
     return () => ro.disconnect()
   })
@@ -374,8 +385,8 @@ export default function PlanningView({
 
   const runAutoScroll = useCallback(() => {
     if (autoScrollFrameRef.current !== null) return // déjà en cours
-    const EDGE = 70       // zone sensible depuis le bord, en px
-    const MAX_SPEED = 16  // vitesse max, en px par frame
+    const EDGE = 60      // zone sensible depuis le bord, en px
+    const MAX_SPEED = 9  // vitesse max, en px par frame — volontairement modérée pour rester précis
     const step = () => {
       if (!dragRef.current) { autoScrollFrameRef.current = null; return }
       const sb = scrollBodyRef.current
@@ -552,7 +563,7 @@ export default function PlanningView({
       const p = monthKey.split('-')
       const monthDate = new Date(parseInt(p[0]), parseInt(p[1])-1, 1)
       return (
-        <>
+        <Fragment key={monthKey}>
           {/* Ligne mois */}
           <tr key={`mf-${monthKey}`}
             onClick={() => toggleMonth(monthKey)}
@@ -602,7 +613,7 @@ export default function PlanningView({
               </tr>
             )
           })}
-        </>
+        </Fragment>
       )
     })
 
@@ -617,7 +628,7 @@ export default function PlanningView({
       const isClosing = closingMonths.has(monthKey)
       const hasEvts = monthWeeks.some(w => columns.some(col => getColEvs(w.events, col).length > 0))
       return (
-        <>
+        <Fragment key={monthKey}>
           {/* Ligne mois */}
           <tr key={`ms-${monthKey}`}
             onClick={() => toggleMonth(monthKey)}
@@ -665,7 +676,7 @@ export default function PlanningView({
               </tr>
             )
           })}
-        </>
+        </Fragment>
       )
     })
 
@@ -738,7 +749,7 @@ export default function PlanningView({
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* Corps fixe gauche : Semaine + W-End — scroll vertical synchronisé, jamais horizontal */}
-        <div id="fixed-body-ref" ref={fixedBodyRef} style={{ width: fixedW, minWidth: fixedW, overflowY: 'hidden', overflowX: 'hidden', flexShrink: 0 }}>
+        <div id="fixed-body-ref" ref={fixedBodyRef} style={{ width: fixedW, minWidth: fixedW, overflowY: 'hidden', overflowX: 'hidden', flexShrink: 0, overflowAnchor: 'none' }}>
           <table ref={fixedBodyTableRef} style={{ tableLayout: 'fixed', width: fixedW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               <col style={{ width: W_SEM }} />
@@ -749,7 +760,7 @@ export default function PlanningView({
         </div>
 
         {/* Corps scrollable droite : colonnes événements */}
-        <div id="scroll-body-ref" ref={scrollBodyRef} style={{ overflowX: 'scroll', overflowY: 'scroll', flex: 1, scrollbarGutter: 'stable' }}>
+        <div id="scroll-body-ref" ref={scrollBodyRef} style={{ overflowX: 'scroll', overflowY: 'scroll', flex: 1, scrollbarGutter: 'stable', overflowAnchor: 'none' }}>
           <table ref={scrollBodyTableRef} style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
