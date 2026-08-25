@@ -276,6 +276,18 @@ export default function PlanningView({
     const scrollTable = scrollBodyTableRef.current
     if (!fixedTable || !scrollTable) return
 
+    // Le recalcul ci-dessous efface d'abord la hauteur de TOUTES les lignes avant
+    // de la réappliquer une par une : pendant ce court instant, la hauteur totale
+    // du tableau peut redevenir plus petite que la position de scroll actuelle,
+    // et le navigateur "rattrape" ça en recalant le scroll — sans jamais le
+    // restaurer une fois la vraie hauteur réappliquée. D'où le retour en haut
+    // après un drop (dès que les données changent et que ce recalcul retourne).
+    // On sauvegarde donc la position avant, et on la reforce après coup.
+    const sb = scrollBodyRef.current
+    const fb = fixedBodyRef.current
+    const savedScrollTop = sb?.scrollTop ?? 0
+    const savedScrollLeft = sb?.scrollLeft ?? 0
+
     const fixedRows  = Array.from(fixedTable.querySelectorAll('tr')) as HTMLElement[]
     const scrollRows = Array.from(scrollTable.querySelectorAll('tr')) as HTMLElement[]
     const len = Math.min(fixedRows.length, scrollRows.length)
@@ -302,6 +314,9 @@ export default function PlanningView({
       fixedRows[i].style.height = `${h}px`
       scrollRows[i].style.height = `${h}px`
     }
+
+    if (sb) { sb.scrollTop = savedScrollTop; sb.scrollLeft = savedScrollLeft }
+    if (fb) fb.scrollTop = savedScrollTop
   }, [])
 
   useEffect(() => {
