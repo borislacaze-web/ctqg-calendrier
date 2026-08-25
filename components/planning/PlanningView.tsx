@@ -538,6 +538,19 @@ export default function PlanningView({
     return () => window.removeEventListener('keyup', onKey)
   }, [])
 
+  // Bandeau de couleur sous le nom de sous-catégorie, uniquement pour
+  // "Compétitions Seniors" : rose = féminin, bleu = masculin, gris = mixte (3x3).
+  // Ajouter/retirer une sous-catégorie ici si la liste évolue.
+  const SENIORS_GENDER_COLOR: Record<string, string> = {
+    'ID-PRF': '#ec4899', 'Coupe Féminine': '#ec4899', 'Trophée MPT': '#ec4899',
+    'PRM': '#3b82f6', 'Coupe Masculine': '#3b82f6', 'Trophée CM': '#3b82f6',
+    '3x3': '#94a3b8', '3x3 entreprises': '#94a3b8',
+  }
+  const getGenderColor = (catName: string, subName: string | null): string | null => {
+    if (catName !== 'Compétitions Seniors' || !subName) return null
+    return SENIORS_GENDER_COLOR[subName] ?? null
+  }
+
   const columns = useMemo(() => {
     const excludedSet = new Set(excludedKeys ?? [])
     const cols: { catId: string; catName: string; catColor: string; subId: string|null; subName: string|null; key: string }[] = []
@@ -795,16 +808,20 @@ export default function PlanningView({
                 ))}
               </tr>
               <tr style={{ height: H2 }}>
-                {columns.map(col => (
-                  <th key={col.key} style={{
-                    position: 'sticky', top: H1,
-                    background: blend(col.catColor, 0.07), color: col.catColor,
-                    border: `1px solid ${col.catColor}55`, borderTop: 'none',
-                    textAlign: 'center', verticalAlign: 'middle',
-                    fontWeight: 500, fontSize: '12px', lineHeight: '1.2', whiteSpace: 'normal',
-                    height: H2, padding: '3px', boxSizing: 'border-box',
-                  }}>{col.subName ?? ''}</th>
-                ))}
+                {columns.map(col => {
+                  const genderColor = getGenderColor(col.catName, col.subName)
+                  return (
+                    <th key={col.key} style={{
+                      position: 'sticky', top: H1,
+                      background: blend(col.catColor, 0.07), color: col.catColor,
+                      border: `1px solid ${col.catColor}55`, borderTop: 'none',
+                      textAlign: 'center', verticalAlign: 'middle',
+                      fontWeight: 500, fontSize: '12px', lineHeight: '1.2', whiteSpace: 'normal',
+                      height: H2, padding: '3px', boxSizing: 'border-box',
+                      boxShadow: genderColor ? `inset 0 -3px 0 0 ${genderColor}` : undefined,
+                    }}>{col.subName ?? ''}</th>
+                  )
+                })}
               </tr>
             </thead>
           </table>
