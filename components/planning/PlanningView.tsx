@@ -724,7 +724,11 @@ export default function PlanningView({
                 const isDropTarget = dropTarget?.saturday === satStr && dropTarget?.catId === col.catId && dropTarget?.subId === col.subId
                 return (
                   <td key={col.key} data-saturday={satStr} data-cat-id={col.catId} data-sub-id={col.subId ?? ''}
-                    onDoubleClick={onCellDoubleClick ? () => onCellDoubleClick(week.saturday, col.catId, col.subId) : undefined}
+                    onDoubleClick={onCellDoubleClick ? () => {
+                      // Sous-catégories féminines (bandeau rose) : jour par défaut = dimanche
+                      const isFeminine = getGenderColor(col.catName, col.subName) === '#ec4899'
+                      onCellDoubleClick(isFeminine ? week.sunday : week.saturday, col.catId, col.subId)
+                    } : undefined}
                     title={onCellDoubleClick ? 'Double-clic pour créer un événement' : undefined}
                     style={{
                     border: '1px solid #dde3ec',
