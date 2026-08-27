@@ -322,6 +322,29 @@ export default function PlanningView({
     if (fb) fb.scrollTop = savedScrollTop
   }, [])
 
+  // Largeur réelle de la scrollbar verticale de scrollBodyRef, mesurée en JS
+  // (offsetWidth - clientWidth). scrollBodyRef réserve cette largeur en
+  // permanence (overflowY:'scroll'), donc a une largeur utile plus étroite que
+  // scrollHeaderRef qui n'a jamais de scrollbar. Sans compensation, les deux
+  // zones ont un scrollLeft maximum différent : en fin de scroll horizontal, la
+  // position copiée depuis le corps dépasse le maximum de l'en-tête et se fait
+  // plafonner par le navigateur — l'en-tête se décale de la largeur d'une
+  // scrollbar (constaté sous Chrome/Windows). On applique cette largeur en
+  // paddingRight sur scrollHeaderRef pour égaliser les deux largeurs utiles.
+  // (Tentative précédente : masquer une vraie scrollbar en CSS pour réserver
+  // le même espace — mais Chrome ne réserve alors plus d'espace du tout quand
+  // la scrollbar est display:none, d'où cette mesure directe à la place.)
+  const [scrollbarW, setScrollbarW] = useState(0)
+  useEffect(() => {
+    const sb = scrollBodyRef.current
+    if (!sb) return
+    const measure = () => setScrollbarW(sb.offsetWidth - sb.clientWidth)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(sb)
+    return () => ro.disconnect()
+  }, [])
+
   // Synchronise le header droit (colonnes) et le corps fixe gauche (Semaine/W-End)
   // sur le scroll de scrollBodyRef. On utilise une boucle requestAnimationFrame
   // plutôt que l'événement 'scroll' : sous Chrome, le scroll déclenché par un
@@ -805,17 +828,12 @@ export default function PlanningView({
         </div>
 
         {/* Header scrollable droite : catégories + sous-catégories.
-            overflowY: 'scroll' (au lieu de 'hidden') pour réserver EXACTEMENT la
-            même largeur de gouttière que scrollBodyRef (qui a, lui, une vraie
-            scrollbar verticale visible en permanence). Sans ça, cette zone est
-            légèrement plus large que celle du corps, donc son scrollLeft maximum
-            est légèrement supérieur — en fin de scroll horizontal, le scrollLeft
-            copié depuis le corps dépasse ce maximum et se fait clamper, ce qui
-            décale l'en-tête des colonnes de la largeur d'une scrollbar (visible
-            surtout sous Chrome/Windows où la scrollbar classique prend de la
-            place). On garde une vraie scrollbar ici pour la réservation d'espace,
-            mais on la masque visuellement (classe hide-scrollbar ci-dessous). */}
-        <div id="scroll-header-ref" ref={scrollHeaderRef} className="hide-scrollbar" style={{ overflowY: 'scroll', overflowX: 'hidden', flex: 1 }}>
+            paddingRight: scrollbarW compense la largeur de la scrollbar verticale
+            réservée en permanence par scrollBodyRef, pour que les deux zones
+            aient EXACTEMENT la même largeur utile (donc le même scrollLeft
+            maximum) — voir le commentaire au niveau du useEffect qui mesure
+            scrollbarW plus haut. */}
+        <div id="scroll-header-ref" ref={scrollHeaderRef} style={{ overflow: 'hidden', flex: 1, paddingRight: scrollbarW, boxSizing: 'border-box' }}>
           <table ref={scrollHeaderInnerRef} style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
@@ -881,12 +899,6 @@ export default function PlanningView({
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        /* Scrollbar réelle (donc réservant sa largeur en layout) mais masquée
-           visuellement, pour que #scroll-header-ref ait la même largeur utile
-           que #scroll-body-ref juste en dessous — voir commentaire au niveau
-           de #scroll-header-ref. */
-        .hide-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
-        .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
       `}</style>
     </div>
   )
