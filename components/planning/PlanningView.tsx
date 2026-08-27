@@ -322,17 +322,29 @@ export default function PlanningView({
     if (fb) fb.scrollTop = savedScrollTop
   }, [])
 
+  // Synchronise le header droit (colonnes) et le corps fixe gauche (Semaine/W-End)
+  // sur le scroll de scrollBodyRef. On utilise une boucle requestAnimationFrame
+  // plutôt que l'événement 'scroll' : sous Chrome, le scroll déclenché par un
+  // glisser de la scrollbar tourne sur le thread de composition et l'événement
+  // 'scroll' n'est livré au JS qu'avec un léger retard — le header (piloté par
+  // cet événement) se désynchronise alors visuellement des colonnes pendant le
+  // glisser (colonnes qui ne s'alignent plus). Firefox/Brave ne montrent pas ce
+  // décalage car ils livrent l'événement plus promptement. Le rAF lit la position
+  // réelle à chaque frame de rendu, donc aucun retard possible.
   useEffect(() => {
     const sb = scrollBodyRef.current
     const fb = fixedBodyRef.current
     const sh = scrollHeaderRef.current
     if (!sb || !fb || !sh) return
-    const onScroll = () => {
-      fb.scrollTop   = sb.scrollTop
-      sh.scrollLeft  = sb.scrollLeft
+    let frameId: number
+    let lastTop = -1, lastLeft = -1
+    const sync = () => {
+      if (sb.scrollTop !== lastTop) { fb.scrollTop = sb.scrollTop; lastTop = sb.scrollTop }
+      if (sb.scrollLeft !== lastLeft) { sh.scrollLeft = sb.scrollLeft; lastLeft = sb.scrollLeft }
+      frameId = requestAnimationFrame(sync)
     }
-    sb.addEventListener('scroll', onScroll, { passive: true })
-    return () => sb.removeEventListener('scroll', onScroll)
+    frameId = requestAnimationFrame(sync)
+    return () => cancelAnimationFrame(frameId)
   }, [])
 
   // Aligner la hauteur du header gauche sur celle du header droit
