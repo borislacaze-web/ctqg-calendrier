@@ -804,8 +804,18 @@ export default function PlanningView({
           </table>
         </div>
 
-        {/* Header scrollable droite : catégories + sous-catégories */}
-        <div id="scroll-header-ref" ref={scrollHeaderRef} style={{ overflow: 'hidden', flex: 1 }}>
+        {/* Header scrollable droite : catégories + sous-catégories.
+            overflowY: 'scroll' (au lieu de 'hidden') pour réserver EXACTEMENT la
+            même largeur de gouttière que scrollBodyRef (qui a, lui, une vraie
+            scrollbar verticale visible en permanence). Sans ça, cette zone est
+            légèrement plus large que celle du corps, donc son scrollLeft maximum
+            est légèrement supérieur — en fin de scroll horizontal, le scrollLeft
+            copié depuis le corps dépasse ce maximum et se fait clamper, ce qui
+            décale l'en-tête des colonnes de la largeur d'une scrollbar (visible
+            surtout sous Chrome/Windows où la scrollbar classique prend de la
+            place). On garde une vraie scrollbar ici pour la réservation d'espace,
+            mais on la masque visuellement (classe hide-scrollbar ci-dessous). */}
+        <div id="scroll-header-ref" ref={scrollHeaderRef} className="hide-scrollbar" style={{ overflowY: 'scroll', overflowX: 'hidden', flex: 1 }}>
           <table ref={scrollHeaderInnerRef} style={{ tableLayout: 'fixed', width: colsW, borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px' }}>
             <colgroup>
               {columns.map(col => <col key={col.key} style={{ width: W_COL }} />)}
@@ -871,6 +881,12 @@ export default function PlanningView({
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        /* Scrollbar réelle (donc réservant sa largeur en layout) mais masquée
+           visuellement, pour que #scroll-header-ref ait la même largeur utile
+           que #scroll-body-ref juste en dessous — voir commentaire au niveau
+           de #scroll-header-ref. */
+        .hide-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+        .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
       `}</style>
     </div>
   )
