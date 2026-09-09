@@ -15,6 +15,7 @@ const schema = z.object({
   subcategory_id:  z.string().optional(),
   start_date:      z.string().min(1, 'La date de début est obligatoire'),
   end_date:        z.string().min(1, 'La date de fin est obligatoire'),
+  rdv_time:        z.string().optional(),
   description:     z.string().optional(),
   location:        z.string().optional(),
   target_audience: z.string().optional(),
@@ -61,6 +62,7 @@ export default function EventForm({
       subcategory_id:  event?.subcategory_id ?? defaultSubcategoryId ?? '',
       start_date:      event?.start_date ?? defaultDate ?? '',
       end_date:        event?.end_date ?? event?.start_date ?? defaultDate ?? '',
+      rdv_time:        event?.rdv_time ?? '00:00',
       description:     event?.description ?? '',
       location:        event?.location ?? '',
       target_audience: event?.target_audience ?? '',
@@ -135,6 +137,7 @@ export default function EventForm({
         location:       data.location || null,
         target_audience: data.target_audience || null,
         color:          data.color || null,
+        rdv_time:       data.rdv_time || '00:00',
       }
 
       let eventId = event?.id
@@ -268,6 +271,15 @@ export default function EventForm({
                 Se cale automatiquement sur la date de début tant qu'elle n'est pas modifiée manuellement.
               </p>
             </div>
+          </div>
+
+          {/* Heure de RDV */}
+          <div>
+            <label className="label">Heure de RDV</label>
+            <input {...register('rdv_time')} type="time" className="input max-w-[140px]" />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Facultatif — laissée à 00:00 si non renseignée.
+            </p>
           </div>
 
           {/* Lieu */}

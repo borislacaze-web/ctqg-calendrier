@@ -50,6 +50,7 @@ export interface CalendarEvent {
   target_audience: string | null
   start_date: string
   end_date: string
+  rdv_time: string | null
   week_number: number
   sport_week_start: string
   status: EventStatus

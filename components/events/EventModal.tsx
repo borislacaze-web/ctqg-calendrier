@@ -102,6 +102,9 @@ export default function EventModal({ event, isAdmin, onClose, onEdit, onDelete, 
                   ? format(parseISO(event.start_date), 'EEEE dd MMMM yyyy', { locale: fr })
                   : `${format(parseISO(event.start_date), 'dd/MM/yyyy')} → ${format(parseISO(event.end_date), 'dd/MM/yyyy')}`
                 }
+                {event.rdv_time && event.rdv_time !== '00:00' && (
+                  <span className="text-slate-500 font-normal"> — RDV à {event.rdv_time}</span>
+                )}
               </p>
               <p className="text-xs text-slate-500">Semaine {event.week_number}</p>
             </div>

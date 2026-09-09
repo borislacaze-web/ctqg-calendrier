@@ -1,90 +1,469 @@
-// app/login/page.tsx
+// app/page.tsx
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { CalendarDays, Loader2, Eye, EyeOff } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Plus, Download, FileSpreadsheet, FileText, LayoutList, Table2, CalendarDays } from 'lucide-react'
+import Navbar from '@/components/layout/Navbar'
+import SeasonSelector from '@/components/layout/SeasonSelector'
+import FilterBar, { type Filters } from '@/components/filters/FilterBar'
+import PlanningView from '@/components/planning/PlanningView'
+import ListView from '@/components/planning/ListView'
+import CalendarView from '@/components/planning/CalendarView'
+import EventModal from '@/components/events/EventModal'
+import EventForm from '@/components/events/EventForm'
+import BulkActionsBar from '@/components/events/BulkActionsBar'
+import {
+  useSeasons, useCategories, useSubcategories,
+  useEvents, useCurrentUser
+} from '@/hooks/useCalendarData'
 import { createClient } from '@/lib/supabase/client'
+import { exportToExcel } from '@/lib/excel-utils'
+import { exportToPDF } from '@/lib/pdf-utils'
+import { exportToImage, exportCalendarToImage } from '@/lib/image-export'
+import { addDays, format } from 'date-fns'
+import { fr } from 'date-fns/locale'
+import type { CalendarEvent, EventStatus, Season } from '@/types'
 import toast from 'react-hot-toast'
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPwd, setShowPwd] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
+type View = 'planning' | 'list' | 'calendar'
+
+export default function HomePage() {
+  const { seasons, loading: loadingSeasons } = useSeasons()
+  const { categories, loading: loadingCats } = useCategories()
+  const { subcategories } = useSubcategories()
+  const { profile, isAdmin } = useCurrentUser()
   const supabase = createClient()
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      toast.error('Identifiants incorrects')
-    } else {
-      toast.success('Connexion réussie')
-      router.push('/')
-      router.refresh()
+  const [activeSeason, setActiveSeason] = useState<Season | null>(null)
+  const [view, setView] = useState<View>('planning')
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null | undefined>(undefined)
+  const [showForm, setShowForm] = useState(false)
+  const [defaultDate, setDefaultDate] = useState<string | undefined>(undefined)
+  const [defaultCategoryId, setDefaultCategoryId] = useState<string | undefined>(undefined)
+  const [defaultSubcategoryId, setDefaultSubcategoryId] = useState<string | undefined>(undefined)
+  const [exportingImage, setExportingImage] = useState(false)
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
+  const [filters, setFilters] = useState<Filters>({ keyword: '', excludedKeys: [], month: '' })
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
+
+  useEffect(() => {
+    if (seasons.length > 0 && !activeSeason) {
+      const active = seasons.find(s => s.is_active) ?? seasons[0]
+      setActiveSeason(active)
     }
-    setLoading(false)
+  }, [seasons])
+
+  // La sélection multiple ne doit pas survivre à un changement de saison
+  // (les événements sélectionnés n'existent plus dans le nouveau contexte)
+  useEffect(() => { setSelectedEventIds(new Set()) }, [activeSeason?.id])
+
+  const { events, loading: loadingEvents, refresh, appendEvent } = useEvents(
+    activeSeason?.id,
+    {
+      keyword: filters.keyword || undefined,
+    }
+  )
+
+  const filteredEvents = useMemo(() => {
+    const excludedSet = new Set(filters.excludedKeys)
+    return events.filter(ev => {
+      // Filtre mois
+      if (filters.month) {
+        const m = parseInt(filters.month)
+        if (new Date(ev.start_date).getMonth() + 1 !== m) return false
+      }
+      // Filtre catégories/sous-catégories (même format de clé que PlanningView)
+      const key = ev.subcategory_id ? `sub-${ev.subcategory_id}` : `cat-${ev.category_id}`
+      if (excludedSet.has(key)) return false
+      return true
+    })
+  }, [events, filters.month, filters.excludedKeys])
+
+  // Événements du mois affiché dans la vue Calendrier (pour l'export "Vue en cours")
+  // Un événement est inclus s'il chevauche le mois affiché (début ou fin dans le mois)
+  const eventsForCalendarMonth = useMemo(() => {
+    const y = calendarMonth.getFullYear()
+    const m = calendarMonth.getMonth()
+    const monthStart = new Date(y, m, 1)
+    const monthEnd = new Date(y, m + 1, 0, 23, 59, 59)
+    return filteredEvents.filter(ev => {
+      const start = new Date(ev.start_date)
+      const end = new Date(ev.end_date)
+      return start <= monthEnd && end >= monthStart
+    })
+  }, [filteredEvents, calendarMonth])
+
+  const calendarMonthLabel = useMemo(() => {
+    const label = format(calendarMonth, 'MMMM yyyy', { locale: fr })
+    return label.charAt(0).toUpperCase() + label.slice(1)
+  }, [calendarMonth])
+
+  const handleDelete = async (event: CalendarEvent) => {
+    const { error } = await supabase.from('events').delete().eq('id', event.id)
+    if (error) {
+      toast.error('Erreur lors de la suppression')
+    } else {
+      toast.success('Événement supprimé')
+      refresh()
+    }
   }
 
+  // Ouvre le formulaire de création, avec date/catégorie/sous-catégorie par défaut
+  // optionnelles (ex: double-clic sur une case du planning).
+  const openNewEventForm = (date?: Date, categoryId?: string, subcategoryId?: string | null) => {
+    setEditingEvent(null)
+    setDefaultDate(date ? format(date, 'yyyy-MM-dd') : undefined)
+    setDefaultCategoryId(categoryId)
+    setDefaultSubcategoryId(subcategoryId ?? undefined)
+    setShowForm(true)
+  }
+
+  const handleCellDoubleClick = (date: Date, categoryId: string, subcategoryId: string | null) => {
+    openNewEventForm(date, categoryId, subcategoryId)
+  }
+
+  const handleDuplicate = (event: CalendarEvent) => {
+    const copy = {
+      ...event,
+      id: undefined,
+      title: `Copie — ${event.title}`,
+      created_at: undefined,
+      updated_at: undefined,
+      category: undefined,
+      subcategory: undefined,
+      event_documents: undefined,
+    } as unknown as CalendarEvent
+    setEditingEvent(copy)
+    setShowForm(true)
+  }
+
+
+  // Duplication silencieuse par Ctrl+drag depuis PlanningView
+  const handleDuplicateToWeek = async (event: CalendarEvent, targetSaturday: Date, targetCategoryId: string, targetSubcategoryId: string | null) => {
+    const origStart = new Date(event.start_date)
+    const origEnd   = new Date(event.end_date)
+    const duration  = Math.round((origEnd.getTime() - origStart.getTime()) / 86400000)
+
+    // Même jour de semaine que l'original, ancré sur le samedi cible
+    // Semaine sportive : sam=+0, dim=+1, lun=+2, mar=+3, mer=+4, jeu=+5, ven=+6
+    const origDow = origStart.getDay() // 0=dim, 1=lun, ..., 6=sam
+    let offsetFromSat: number
+    if (origDow === 6) offsetFromSat = 0
+    else if (origDow === 0) offsetFromSat = 1
+    else offsetFromSat = origDow + 1  // lun=2, mar=3, mer=4, jeu=5, ven=6
+
+    const newStart = addDays(targetSaturday, offsetFromSat)
+    const newEnd   = addDays(newStart, duration)
+    const toISO = (d: Date) => d.toISOString().slice(0, 10)
+
+    const { error } = await supabase.from('events').insert({
+      season_id:        event.season_id,
+      category_id:      targetCategoryId,
+      subcategory_id:   targetSubcategoryId,
+      title:            event.title,
+      description:      event.description,
+      location:         event.location,
+      target_audience:  event.target_audience,
+      start_date:       toISO(newStart),
+      end_date:         toISO(newEnd),
+      rdv_time:         event.rdv_time,
+      week_number:      event.week_number,
+      sport_week_start: toISO(targetSaturday),
+      status:           event.status,
+      color:            event.color,
+    })
+
+    if (error) {
+      toast.error('Erreur lors de la duplication')
+    } else {
+      // Récupérer l'event créé avec ses relations pour l'injecter sans refresh
+      const { data: created } = await supabase
+        .from('events')
+        .select('*, category:categories(*), subcategory:subcategories(*), event_documents(*)')
+        .eq('season_id', event.season_id)
+        .eq('start_date', toISO(newStart))
+        .eq('title', event.title)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (created) {
+        appendEvent(created)
+      } else {
+        refresh() // fallback
+      }
+      toast.success(`✔ Dupliqué → sem. du ${format(targetSaturday, 'dd/MM/yyyy')}`)
+    }
+  }
+
+  // ── Sélection multiple (Ctrl+clic dans le planning) ──
+  // useCallback pour garder une référence stable : PlanningView s'appuie dessus
+  // via une ref interne, mais autant éviter de recréer la fonction à chaque render.
+  const toggleEventSelection = useCallback((id: string) => {
+    setSelectedEventIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const clearSelection = () => setSelectedEventIds(new Set())
+
+  const handleBulkStatusChange = async (status: EventStatus) => {
+    const ids = Array.from(selectedEventIds)
+    if (ids.length === 0) return
+    setBulkSaving(true)
+    const { error } = await supabase.from('events').update({ status }).in('id', ids)
+    setBulkSaving(false)
+    if (error) {
+      toast.error('Erreur lors de la mise à jour du statut')
+    } else {
+      toast.success(`Statut mis à jour pour ${ids.length} événement${ids.length > 1 ? 's' : ''}`)
+      clearSelection()
+      refresh()
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedEventIds)
+    if (ids.length === 0) return
+    if (!confirm(`Supprimer ${ids.length} événement${ids.length > 1 ? 's' : ''} sélectionné${ids.length > 1 ? 's' : ''} ? Cette action est irréversible.`)) return
+    setBulkSaving(true)
+    const { error } = await supabase.from('events').delete().in('id', ids)
+    setBulkSaving(false)
+    if (error) {
+      toast.error('Erreur lors de la suppression groupée')
+    } else {
+      toast.success(`${ids.length} événement${ids.length > 1 ? 's' : ''} supprimé${ids.length > 1 ? 's' : ''}`)
+      clearSelection()
+      refresh()
+    }
+  }
+
+  const isLoading = loadingSeasons || loadingCats || loadingEvents
+
+  const viewButtons: { key: View; label: string; icon: typeof Table2 }[] = [
+    { key: 'planning',  label: 'Planning',   icon: Table2 },
+    { key: 'calendar',  label: 'Calendrier', icon: CalendarDays },
+    { key: 'list',      label: 'Liste',      icon: LayoutList },
+  ]
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-100 rounded-2xl mb-4">
-            <CalendarDays className="w-7 h-7 text-blue-700" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">CTQG</h1>
-          <p className="text-slate-500 text-sm mt-1">Calendrier Général</p>
-        </div>
+    <div className={`app-root h-screen flex flex-col bg-slate-50 ${view === 'planning' ? 'view-planning' : 'view-other'}`}>
+      <Navbar />
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="label">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="input"
-              placeholder="votre@email.fr"
-              required
-              autoComplete="email"
+      {/* Toolbar */}
+      <div className="filter-bar bg-white border-b border-slate-200 sticky top-14 z-30">
+        <div className="max-w-[1600px] mx-auto px-4 py-2 flex items-center gap-3 flex-wrap">
+          {activeSeason && (
+            <SeasonSelector
+              seasons={seasons}
+              activeSeason={activeSeason}
+              onChange={setActiveSeason}
             />
-          </div>
-          <div>
-            <label className="label">Mot de passe</label>
-            <div className="relative">
-              <input
-                type={showPwd ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className="input pr-10"
-                placeholder="••••••••"
-                required
-                autoComplete="current-password"
-              />
+          )}
+          <div className="w-px h-5 bg-slate-200 hidden sm:block" />
+
+          {/* Sélecteur de vue */}
+          <div className="flex rounded-lg border border-slate-300 overflow-hidden">
+            {viewButtons.map(({ key, label, icon: Icon }) => (
               <button
-                type="button"
-                onClick={() => setShowPwd(!showPwd)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                key={key}
+                onClick={() => setView(key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors border-r border-slate-300 last:border-r-0 ${
+                  view === key
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-white text-slate-600 hover:bg-slate-50'
+                }`}
               >
-                {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <Icon className="w-4 h-4" />
+                <span className="hidden sm:inline">{label}</span>
               </button>
-            </div>
+            ))}
           </div>
 
-          <button type="submit" disabled={loading} className="btn-primary w-full justify-center mt-2">
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Se connecter
-          </button>
-        </form>
+          <div className="flex-1 min-w-0 relative">
+            <FilterBar categories={categories} subcategories={subcategories} filters={filters} onChange={setFilters} />
+          </div>
 
-        <p className="text-center text-xs text-slate-400 mt-6">
-          Calendrier public — la connexion est réservée aux administrateurs CTQG
-        </p>
+          <div className="flex items-center gap-2 ml-auto">
+            <div className="relative group">
+              <button className="btn-secondary text-sm">
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Exporter</span>
+              </button>
+              {/* pt-1 au lieu de mt-1 : le padding fait partie de la zone hover,
+                  donc plus de "trou" entre le bouton et le menu où le survol se perd */}
+              <div className="absolute right-0 top-full pt-1 z-10 hidden group-hover:block min-w-[180px]">
+                <div className="bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
+                  <button
+                    onClick={async () => {
+                      if (!activeSeason) return
+                      const evts = view === 'calendar' ? eventsForCalendarMonth : filteredEvents
+                      const titre = view === 'calendar'
+                        ? `Calendrier CTQG — ${calendarMonthLabel}`
+                        : undefined
+                      await exportToPDF(evts, categories, activeSeason, titre)
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <FileText className="w-4 h-4 text-red-600" />
+                    PDF{view === 'calendar' ? ' (Vue en cours)' : ''}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!activeSeason) return
+                      const evts = view === 'calendar' ? eventsForCalendarMonth : filteredEvents
+                      exportToExcel(evts, categories, subcategories, activeSeason)
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                    Excel{view === 'calendar' ? ' (Vue en cours)' : ''}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!activeSeason || exportingImage) return
+                      setExportingImage(true)
+                      try {
+                        if (view === 'calendar') {
+                          await exportCalendarToImage(activeSeason, calendarMonthLabel)
+                        } else {
+                          await exportToImage(activeSeason)
+                        }
+                      }
+                      finally { setExportingImage(false) }
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 border-t border-slate-100 flex items-center gap-2"
+                    disabled={exportingImage}
+                  >
+                    {exportingImage
+                      ? <><span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin inline-block" /> Génération…</>
+                      : <><span className="text-base">🖼</span> Image{view === 'calendar' ? ' (Vue en cours)' : ''}</>
+                    }
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {isAdmin && (
+              <button
+                onClick={() => openNewEventForm()}
+                className="btn-primary text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Événement</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Contenu */}
+      <main
+        className={`app-main flex-1 w-full ${view === 'planning' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+        style={view === 'planning'
+          ? { padding: '8px', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }
+          : { maxWidth: '1600px', margin: '0 auto', padding: '16px' }}
+      >
+        {isLoading ? (
+          <div className="flex items-center justify-center py-24 text-slate-400">
+            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : !activeSeason ? (
+          <div className="text-center py-20 text-slate-500">
+            <p className="text-lg font-medium">Aucune saison configurée</p>
+            {isAdmin && (
+              <p className="text-sm mt-2">
+                Rendez-vous dans <a href="/admin/seasons" className="text-blue-600 hover:underline">l'administration</a> pour créer une saison.
+              </p>
+            )}
+          </div>
+        ) : view === 'planning' ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}><PlanningView
+            events={filteredEvents}
+            categories={categories}
+            subcategories={subcategories}
+            season={activeSeason}
+            onEventClick={setSelectedEvent}
+            onEventDoubleClick={isAdmin ? (ev) => { setEditingEvent(ev); setShowForm(true) } : undefined}
+            onCellDoubleClick={isAdmin ? handleCellDoubleClick : undefined}
+            isAdmin={isAdmin}
+            onDuplicateToWeek={isAdmin ? handleDuplicateToWeek : undefined}
+            selectedIds={isAdmin ? selectedEventIds : undefined}
+            onToggleSelect={isAdmin ? toggleEventSelection : undefined}
+            excludedKeys={filters.excludedKeys}
+            filterMonth={filters.month}
+            filterKeyword={filters.keyword}
+          /></div>
+        ) : view === 'calendar' ? (
+          <CalendarView
+            events={filteredEvents}
+            categories={categories}
+            season={activeSeason}
+            onEventClick={setSelectedEvent}
+            onMonthChange={setCalendarMonth}
+          />
+        ) : (
+          <ListView
+            events={filteredEvents}
+            onEventClick={setSelectedEvent}
+          />
+        )}
+      </main>
+
+      {/* Légende statuts */}
+      {view === 'planning' && (
+        <footer className="bg-white border-t border-slate-200 px-4 py-2 landscape:max-[900px]:hidden">
+          <div className="max-w-[1600px] mx-auto flex items-center gap-4 text-[11px] text-slate-500 flex-wrap">
+            <span className="font-medium text-slate-600">Statuts des évènements :</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#94a3b8'}}/> Prévisionnel</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#22c55e'}}/> Confirmé</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#ef4444'}}/> Annulé</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{background:'#f97316'}}/> Reporté</span>
+            <span className="ml-auto">{filteredEvents.length} événement{filteredEvents.length !== 1 ? 's' : ''}</span>
+          </div>
+        </footer>
+      )}
+
+      <EventModal
+        event={selectedEvent}
+        isAdmin={isAdmin}
+        onClose={() => setSelectedEvent(null)}
+        onEdit={(ev) => { setEditingEvent(ev); setShowForm(true) }}
+        onDelete={handleDelete}
+        onDuplicate={handleDuplicate}
+      />
+
+      {showForm && activeSeason && (
+        <EventForm
+          event={editingEvent}
+          season={activeSeason}
+          categories={categories}
+          subcategories={subcategories}
+          defaultDate={defaultDate}
+          defaultCategoryId={defaultCategoryId}
+          defaultSubcategoryId={defaultSubcategoryId}
+          onSaved={refresh}
+          onClose={() => {
+            setShowForm(false)
+            setEditingEvent(undefined)
+            setDefaultDate(undefined)
+            setDefaultCategoryId(undefined)
+            setDefaultSubcategoryId(undefined)
+          }}
+        />
+      )}
+
+      <BulkActionsBar
+        count={selectedEventIds.size}
+        saving={bulkSaving}
+        onStatusChange={handleBulkStatusChange}
+        onDelete={handleBulkDelete}
+        onClear={clearSelection}
+      />
     </div>
   )
 }

@@ -936,7 +936,7 @@ function EventBadge({
       onClick={handleClick}
       onMouseDown={onMouseDown}
       onDoubleClick={e => e.stopPropagation()}
-      title={`${title}${event.location ? ` · ${event.location}` : ''}${isAdmin ? ' · Ctrl+clic pour sélectionner' : ''}`}
+      title={`${title}${event.rdv_time && event.rdv_time !== '00:00' ? ` · RDV ${event.rdv_time}` : ''}${event.location ? ` · ${event.location}` : ''}${isAdmin ? ' · Ctrl+clic pour sélectionner' : ''}`}
       style={{
         display: 'block', width: '100%', textAlign: 'left',
         background: selected ? '#bfdbfe' : color+'22',
