@@ -412,7 +412,6 @@ export default function PlanningView({
   const dragRef = useRef<DragState | null>(null)
   const [dropTarget, setDropTarget] = useState<{ saturday: string; catId: string; subId: string | null } | null>(null)
   const [duplicating, setDuplicating] = useState(false)
-
   // Zoom du planning (mobile surtout) : permet de dézoomer pour avoir une vue
   // d'ensemble sans casser le layout à colonnes fixes — contrairement à un
   // viewport large, qui ferait scroller la page entière.
@@ -423,6 +422,29 @@ export default function PlanningView({
   const zoomOut  = () => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))
   const zoomIn   = () => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))
   const zoomReset = () => setZoom(1)
+
+  // Le zoom CSS modifie les hauteurs rendues (arrondis de pixels différents dans
+  // les deux tableaux) : sans resynchronisation, les colonnes Semaine/W-End se
+  // désalignent des colonnes d'événements. On resynchronise après que le
+  // navigateur a réellement appliqué le nouveau zoom (double rAF + petit délai
+  // pour laisser le reflow se terminer complètement).
+  useEffect(() => {
+    let cancelled = false
+    const resync = () => {
+      if (cancelled || dragRef.current) return
+      syncHeaderHeight()
+      syncRowHeights()
+    }
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        resync()
+        setTimeout(resync, 120) // second passage : le reflow du zoom peut être différé
+      })
+      return () => cancelAnimationFrame(raf2)
+    })
+    return () => { cancelled = true; cancelAnimationFrame(raf1) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom])
 
   const createGhost = useCallback((event: CalendarEvent, x: number, y: number) => {
     const ghost = document.createElement('div')
