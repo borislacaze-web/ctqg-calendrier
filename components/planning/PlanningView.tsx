@@ -413,6 +413,17 @@ export default function PlanningView({
   const [dropTarget, setDropTarget] = useState<{ saturday: string; catId: string; subId: string | null } | null>(null)
   const [duplicating, setDuplicating] = useState(false)
 
+  // Zoom du planning (mobile surtout) : permet de dézoomer pour avoir une vue
+  // d'ensemble sans casser le layout à colonnes fixes — contrairement à un
+  // viewport large, qui ferait scroller la page entière.
+  const [zoom, setZoom] = useState(1)
+  const ZOOM_MIN = 0.4
+  const ZOOM_MAX = 1.6
+  const ZOOM_STEP = 0.15
+  const zoomOut  = () => setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2)))
+  const zoomIn   = () => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2)))
+  const zoomReset = () => setZoom(1)
+
   const createGhost = useCallback((event: CalendarEvent, x: number, y: number) => {
     const ghost = document.createElement('div')
     ghost.style.cssText = `
@@ -808,6 +819,65 @@ export default function PlanningView({
         </div>
       )}
 
+      {/* Contrôles de zoom — flottants en bas à droite, surtout utiles sur mobile */}
+      <div
+        className="planning-zoom-controls"
+        style={{
+          position: 'fixed', right: 10, bottom: 14, zIndex: 900,
+          display: 'flex', alignItems: 'center', gap: 4,
+          background: 'rgba(255,255,255,0.94)',
+          border: '1px solid #cbd5e1', borderRadius: 999,
+          padding: '3px 5px', boxShadow: '0 2px 10px rgba(0,0,0,0.16)',
+        }}
+      >
+        <button
+          onClick={zoomOut}
+          disabled={zoom <= ZOOM_MIN}
+          title="Dézoomer"
+          style={{
+            width: 30, height: 30, borderRadius: '50%', border: 'none',
+            background: zoom <= ZOOM_MIN ? '#e2e8f0' : '#1e3a8a',
+            color: zoom <= ZOOM_MIN ? '#94a3b8' : 'white',
+            fontSize: 18, fontWeight: 700, lineHeight: 1,
+            cursor: zoom <= ZOOM_MIN ? 'default' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >−</button>
+        <button
+          onClick={zoomReset}
+          title="Réinitialiser le zoom"
+          style={{
+            minWidth: 42, height: 30, borderRadius: 15, border: 'none',
+            background: 'transparent', color: '#334155',
+            fontSize: 11, fontWeight: 700, cursor: 'pointer',
+          }}
+        >{Math.round(zoom * 100)}%</button>
+        <button
+          onClick={zoomIn}
+          disabled={zoom >= ZOOM_MAX}
+          title="Zoomer"
+          style={{
+            width: 30, height: 30, borderRadius: '50%', border: 'none',
+            background: zoom >= ZOOM_MAX ? '#e2e8f0' : '#1e3a8a',
+            color: zoom >= ZOOM_MAX ? '#94a3b8' : 'white',
+            fontSize: 18, fontWeight: 700, lineHeight: 1,
+            cursor: zoom >= ZOOM_MAX ? 'default' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >+</button>
+      </div>
+
+      {/* Wrapper de zoom : on met à l'échelle tout le tableau (header + corps)
+          d'un bloc, ce qui préserve l'alignement des colonnes fixes et le
+          fonctionnement des zones de scroll internes. */}
+      <div
+        style={{
+          zoom: zoom,
+          display: 'flex', flexDirection: 'column',
+          flex: 1, minHeight: 0,
+        }}
+      >
+
       {/* ══ HEADER ROW ══ */}
       <div style={{ display: 'flex', flexShrink: 0 }}>
 
@@ -896,9 +966,15 @@ export default function PlanningView({
           </table>
         </div>
       </div>
+      </div>
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        /* Contrôles de zoom : utiles surtout sur mobile / petits écrans.
+           Sur grand écran, le zoom natif du navigateur (Ctrl + molette) suffit. */
+        @media (min-width: 1100px) {
+          .planning-zoom-controls { display: none !important; }
+        }
       `}</style>
     </div>
   )
