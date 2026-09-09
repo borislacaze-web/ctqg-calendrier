@@ -18,6 +18,23 @@
   body {
     @apply bg-slate-50 text-slate-800 antialiased;
   }
+
+  /* Sur mobile, le viewport est fixé à 1600px (pour permettre le pinch-zoom).
+     Sans cette règle, la PAGE ENTIÈRE scrolle horizontalement et emporte avec elle
+     les colonnes Semaine/W-End censées rester fixes, ainsi que la navbar.
+     On verrouille donc le scroll horizontal au niveau de la page : seule la zone
+     interne du planning (#scroll-body-ref) défile latéralement. */
+  @media (max-width: 768px) {
+    html, body {
+      overflow-x: hidden;
+      max-width: 100%;
+    }
+    /* Le conteneur racine ne doit jamais dépasser la largeur visible */
+    .app-root {
+      max-width: 100vw;
+      overflow-x: hidden;
+    }
+  }
 }
 
 @layer components {
