@@ -78,6 +78,11 @@ export default function PlanningView({
   // Ref miroir (accessible de façon synchrone dans syncRowHeights sans dépendance)
   const animatingMonthsRef = useRef<Set<string>>(new Set())
 
+  // Facteur de zoom courant, en ref : syncRowHeights est un useCallback sans
+  // dépendances (volontairement, pour rester stable) et doit pouvoir lire la
+  // valeur à jour au moment de son exécution.
+  const zoomRef = useRef(1)
+
   const ANIM_MS = 220
 
   // Récupère séparément les lignes (fixe / scroll) d'un mois, dans le même ordre
@@ -308,12 +313,19 @@ export default function PlanningView({
       fixedRows[i].style.height = ''
       scrollRows[i].style.height = ''
     }
+    // getBoundingClientRect() retourne des dimensions ÉCRAN, donc déjà multipliées
+    // par le zoom CSS du conteneur. Or style.height s'exprime en unités du document,
+    // qui seront à leur tour multipliées par ce même zoom au rendu. Sans diviser par
+    // le facteur, la hauteur est appliquée deux fois : les deux tableaux dérivent et
+    // les colonnes Semaine/W-End se désalignent des colonnes d'événements.
+    const z = zoomRef.current || 1
+
     for (let i = 0; i < len; i++) {
       if (isAnimating(fixedRows[i]) || isAnimating(scrollRows[i])) continue
       const h = Math.ceil(Math.max(
         fixedRows[i].getBoundingClientRect().height,
         scrollRows[i].getBoundingClientRect().height,
-      ))
+      ) / z)
       fixedRows[i].style.height = `${h}px`
       scrollRows[i].style.height = `${h}px`
     }
@@ -376,7 +388,10 @@ export default function PlanningView({
     const leftDiv  = fixedHeaderRef.current
     const rightTbl = scrollHeaderInnerRef.current
     if (!leftDiv || !rightTbl) return
-    const h = Math.ceil(rightTbl.getBoundingClientRect().height)
+    // Comme pour syncRowHeights : on divise par le zoom pour ne pas appliquer
+    // deux fois le facteur d'échelle (mesure écran → style document).
+    const z = zoomRef.current || 1
+    const h = Math.ceil(rightTbl.getBoundingClientRect().height / z)
     const leftTable = leftDiv.querySelector('table')
     if (leftTable) {
       const tr = leftTable.querySelector('tr') as HTMLElement | null
@@ -429,6 +444,7 @@ export default function PlanningView({
   // navigateur a réellement appliqué le nouveau zoom (double rAF + petit délai
   // pour laisser le reflow se terminer complètement).
   useEffect(() => {
+    zoomRef.current = zoom
     let cancelled = false
     const resync = () => {
       if (cancelled || dragRef.current) return
