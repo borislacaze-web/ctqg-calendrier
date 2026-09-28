@@ -30,7 +30,7 @@ export default function HomePage() {
   const { seasons, loading: loadingSeasons } = useSeasons()
   const { categories, loading: loadingCats } = useCategories()
   const { subcategories } = useSubcategories()
-  const { profile, isAdmin } = useCurrentUser()
+  const { profile, isAdmin, canEditEvents } = useCurrentUser()
   const supabase = createClient()
 
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
@@ -348,7 +348,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            {isAdmin && (
+            {canEditEvents && (
               <button
                 onClick={() => openNewEventForm()}
                 className="btn-primary text-sm"
@@ -388,12 +388,12 @@ export default function HomePage() {
             subcategories={subcategories}
             season={activeSeason}
             onEventClick={setSelectedEvent}
-            onEventDoubleClick={isAdmin ? (ev) => { setEditingEvent(ev); setShowForm(true) } : undefined}
-            onCellDoubleClick={isAdmin ? handleCellDoubleClick : undefined}
-            isAdmin={isAdmin}
-            onDuplicateToWeek={isAdmin ? handleDuplicateToWeek : undefined}
-            selectedIds={isAdmin ? selectedEventIds : undefined}
-            onToggleSelect={isAdmin ? toggleEventSelection : undefined}
+            onEventDoubleClick={canEditEvents ? (ev) => { setEditingEvent(ev); setShowForm(true) } : undefined}
+            onCellDoubleClick={canEditEvents ? handleCellDoubleClick : undefined}
+            isAdmin={canEditEvents}
+            onDuplicateToWeek={canEditEvents ? handleDuplicateToWeek : undefined}
+            selectedIds={canEditEvents ? selectedEventIds : undefined}
+            onToggleSelect={canEditEvents ? toggleEventSelection : undefined}
             excludedKeys={filters.excludedKeys}
             filterMonth={filters.month}
             filterKeyword={filters.keyword}
@@ -430,7 +430,7 @@ export default function HomePage() {
 
       <EventModal
         event={selectedEvent}
-        isAdmin={isAdmin}
+        isAdmin={canEditEvents}
         onClose={() => setSelectedEvent(null)}
         onEdit={(ev) => { setEditingEvent(ev); setShowForm(true) }}
         onDelete={handleDelete}

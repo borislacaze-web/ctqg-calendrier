@@ -107,12 +107,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Actions rapides */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
           {[
             { href: '/?new=1',          label: 'Nouvel événement', icon: Plus,     color: 'bg-blue-700 text-white hover:bg-blue-800' },
             { href: '/admin/import',     label: 'Importer Excel',  icon: Upload,   color: 'bg-green-700 text-white hover:bg-green-800' },
             { href: '/admin/categories', label: 'Catégories',      icon: Settings, color: 'bg-slate-700 text-white hover:bg-slate-800' },
             { href: '/admin/seasons',    label: 'Saisons',         icon: TrendingUp, color: 'bg-orange-600 text-white hover:bg-orange-700' },
+            { href: '/admin/users',      label: 'Comptes',         icon: Users,    color: 'bg-purple-700 text-white hover:bg-purple-800' },
           ].map(a => (
             <Link
               key={a.href}

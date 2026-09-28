@@ -1,7 +1,7 @@
 // types/index.ts
 
 export type EventStatus = 'previsionnel' | 'confirme' | 'annule' | 'reporte'
-export type UserRole = 'admin' | 'club'
+export type UserRole = 'admin' | 'editeur' | 'club'
 
 export interface Season {
   id: string

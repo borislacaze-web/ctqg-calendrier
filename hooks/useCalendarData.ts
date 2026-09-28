@@ -135,5 +135,12 @@ export function useCurrentUser() {
     })
   }, [])
 
-  return { profile, loading, isAdmin: profile?.role === 'admin' }
+  return {
+    profile,
+    loading,
+    isAdmin: profile?.role === 'admin',
+    // Droit de créer / modifier / supprimer des événements :
+    // les administrateurs et les éditeurs (accès restreint aux événements).
+    canEditEvents: profile?.role === 'admin' || profile?.role === 'editeur',
+  }
 }
