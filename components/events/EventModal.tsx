@@ -155,7 +155,23 @@ export default function EventModal({ event, isAdmin, onClose, onEdit, onDelete, 
           {event.location && (
             <div className="flex items-start gap-3">
               <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
-              <p className="text-sm text-slate-700">{event.location}</p>
+              <p className="text-sm text-slate-700">
+                {/^(https?:\/\/|www\.)/i.test(event.location.trim())
+                  // Le lieu est déjà une URL (lien Maps collé, etc.) : on la rend cliquable telle quelle
+                  ? <Linkify text={event.location} />
+                  // Sinon : lien vers la recherche Google Maps de ce lieu
+                  : (
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline underline-offset-2 hover:text-blue-800"
+                      title="Ouvrir dans Google Maps"
+                    >
+                      {event.location}
+                    </a>
+                  )}
+              </p>
             </div>
           )}
 
