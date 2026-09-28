@@ -103,24 +103,46 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, id: data.user.id })
 }
 
-// ── Changement de rôle ──
+// ── Modification d'un compte : rôle et/ou mot de passe ──
 export async function PATCH(request: Request) {
   const check = await requireAdmin()
   if ('error' in check) {
     return NextResponse.json({ error: check.error }, { status: check.status })
   }
 
-  const { id, role, club_name } = await request.json()
-  if (!id || !['admin', 'editeur', 'club'].includes(role)) {
-    return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
+  const { id, role, password, club_name } = await request.json()
+  if (!id) {
+    return NextResponse.json({ error: 'Identifiant manquant' }, { status: 400 })
+  }
+  if (role === undefined && password === undefined && club_name === undefined) {
+    return NextResponse.json({ error: 'Aucune modification fournie' }, { status: 400 })
+  }
+  if (role !== undefined && !['admin', 'editeur', 'club'].includes(role)) {
+    return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
+  }
+  if (password !== undefined && String(password).length < 8) {
+    return NextResponse.json({ error: 'Le mot de passe doit faire au moins 8 caractères' }, { status: 400 })
+  }
+  // Sécurité : un administrateur ne peut pas se retirer ses propres droits admin
+  if (id === check.user.id && role !== undefined && role !== 'admin') {
+    return NextResponse.json({ error: 'Vous ne pouvez pas retirer vos propres droits administrateur' }, { status: 400 })
   }
 
   const admin = adminClient()
-  const { error } = await admin
-    .from('user_profiles')
-    .upsert({ id, role, club_name: club_name ?? null })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (password !== undefined) {
+    const { error } = await admin.auth.admin.updateUserById(id, { password })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  }
+
+  if (role !== undefined || club_name !== undefined) {
+    const patch: Record<string, unknown> = {}
+    if (role !== undefined) patch.role = role
+    if (club_name !== undefined) patch.club_name = club_name || null
+    const { error } = await admin.from('user_profiles').update(patch).eq('id', id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
   return NextResponse.json({ ok: true })
 }
 
