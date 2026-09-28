@@ -18,6 +18,47 @@ const STATUS_ICONS = {
   reporte:      RotateCcw,
 }
 
+/**
+ * Transforme les URL présentes dans un texte libre en liens cliquables.
+ * Reconnaît les adresses commençant par http:// ou https:// ainsi que
+ * celles commençant par www. (auxquelles on ajoute https:// à l'ouverture).
+ * Le reste du texte (retours à la ligne inclus) est préservé tel quel.
+ */
+function Linkify({ text }: { text: string }) {
+  const URL_RE = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi
+  const parts = text.split(URL_RE)
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (!part) return null
+        const isUrl = /^(https?:\/\/|www\.)/i.test(part)
+        if (!isUrl) return <span key={i}>{part}</span>
+
+        // On retire la ponctuation finale collée à l'URL (point, virgule,
+        // parenthèse fermante…) pour ne pas l'inclure dans le lien.
+        const trailing = part.match(/[.,;:!?)\]]+$/)?.[0] ?? ''
+        const url = trailing ? part.slice(0, -trailing.length) : part
+        const href = url.startsWith('www.') ? `https://${url}` : url
+
+        return (
+          <span key={i}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline underline-offset-2 break-all hover:text-blue-800"
+            >
+              {url}
+            </a>
+            {trailing}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
 const STATUS_STYLES = {
   previsionnel: 'bg-gray-100 text-gray-700',
   confirme:     'bg-green-100 text-green-800',
@@ -129,7 +170,7 @@ export default function EventModal({ event, isAdmin, onClose, onEdit, onDelete, 
           {/* Description */}
           {event.description && (
             <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-700 whitespace-pre-line">
-              {event.description}
+              <Linkify text={event.description} />
             </div>
           )}
 
