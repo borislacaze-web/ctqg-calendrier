@@ -51,6 +51,8 @@ export interface CalendarEvent {
   start_date: string
   end_date: string
   rdv_time: string | null
+  link_label: string | null
+  link_url: string | null
   week_number: number
   sport_week_start: string
   status: EventStatus

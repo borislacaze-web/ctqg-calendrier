@@ -168,6 +168,8 @@ export default function HomePage() {
       start_date:       toISO(newStart),
       end_date:         toISO(newEnd),
       rdv_time:         event.rdv_time,
+      link_label:       event.link_label,
+      link_url:         event.link_url,
       week_number:      event.week_number,
       sport_week_start: toISO(targetSaturday),
       status:           event.status,

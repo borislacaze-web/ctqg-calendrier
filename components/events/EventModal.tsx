@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   X, MapPin, Calendar, Tag, FileText, FileImage, FileSpreadsheet,
   AlertCircle, CheckCircle, Clock, RotateCcw, Pencil, Trash2, Copy,
-  Download, ZoomIn
+  Download, ZoomIn, ExternalLink
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -322,6 +322,20 @@ export default function EventModal({ event, isAdmin, onClose, onEdit, onDelete, 
             <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-700 whitespace-pre-line">
               <Linkify text={event.description} />
             </div>
+          )}
+
+          {/* Lien avec libellé personnalisé (ex: Inscription, Règlement…) */}
+          {event.link_url && (
+            <a
+              href={event.link_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600
+                         text-white text-sm font-medium hover:bg-blue-700 transition self-start w-fit"
+            >
+              <ExternalLink className="w-4 h-4 shrink-0" />
+              {event.link_label || 'Lien'}
+            </a>
           )}
 
           {/* Documents */}

@@ -16,6 +16,8 @@ const schema = z.object({
   start_date:      z.string().min(1, 'La date de début est obligatoire'),
   end_date:        z.string().min(1, 'La date de fin est obligatoire'),
   rdv_time:        z.string().optional(),
+  link_label:      z.string().optional(),
+  link_url:        z.string().optional(),
   description:     z.string().optional(),
   location:        z.string().optional(),
   target_audience: z.string().optional(),
@@ -63,6 +65,8 @@ export default function EventForm({
       start_date:      event?.start_date ?? defaultDate ?? '',
       end_date:        event?.end_date ?? event?.start_date ?? defaultDate ?? '',
       rdv_time:        event?.rdv_time ?? '00:00',
+      link_label:      event?.link_label ?? '',
+      link_url:        event?.link_url ?? '',
       description:     event?.description ?? '',
       location:        event?.location ?? '',
       target_audience: event?.target_audience ?? '',
@@ -130,6 +134,14 @@ export default function EventForm({
     setPendingData(null)
     setSaving(true)
     try {
+      // Lien facultatif : si une URL est fournie sans http(s)://, on l'ajoute.
+      // Si le libellé est vide mais l'URL renseignée, on retombe sur "Lien".
+      let linkUrl = data.link_url?.trim() || null
+      let linkLabel = data.link_label?.trim() || null
+      if (linkUrl && !/^https?:\/\//i.test(linkUrl)) linkUrl = `https://${linkUrl}`
+      if (linkUrl && !linkLabel) linkLabel = 'Lien'
+      if (!linkUrl) linkLabel = null
+
       const payload = {
         ...data,
         subcategory_id: data.subcategory_id || null,
@@ -138,6 +150,8 @@ export default function EventForm({
         target_audience: data.target_audience || null,
         color:          data.color || null,
         rdv_time:       data.rdv_time || '00:00',
+        link_label:     linkLabel,
+        link_url:       linkUrl,
       }
 
       let eventId = event?.id
@@ -281,6 +295,31 @@ export default function EventForm({
               Facultatif — laissée à 00:00 si non renseignée.
             </p>
           </div>
+
+          {/* Lien (ex: inscription, règlement…) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Texte du lien</label>
+              <input
+                {...register('link_label')}
+                type="text"
+                placeholder="Ex : Inscription"
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="label">Adresse du lien</label>
+              <input
+                {...register('link_url')}
+                type="text"
+                placeholder="https://..."
+                className="input"
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-400 -mt-2">
+            Facultatif — s'affiche comme un bouton cliquable sur la fiche de l'événement.
+          </p>
 
           {/* Lieu */}
           <div>
