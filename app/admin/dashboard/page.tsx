@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   CalendarDays, FolderOpen, FileText, History,
-  Plus, Upload, Settings, Users, TrendingUp
+  Plus, Upload, Settings, Users, TrendingUp, DatabaseBackup, Loader2
 } from 'lucide-react'
 import Navbar from '@/components/layout/Navbar'
 import { useCurrentUser, useSeasons } from '@/hooks/useCalendarData'
@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { AuditLog } from '@/types'
+import toast from 'react-hot-toast'
 
 interface Stats {
   events: number
@@ -27,6 +28,23 @@ export default function DashboardPage() {
   const supabase = createClient()
   const [stats, setStats] = useState<Stats>({ events: 0, categories: 0, documents: 0 })
   const [recentLogs, setRecentLogs] = useState<AuditLog[]>([])
+  const [backupRunning, setBackupRunning] = useState(false)
+
+  const triggerBackup = async () => {
+    setBackupRunning(true)
+    try {
+      const res = await fetch('/api/admin/backup', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error ?? 'Erreur inconnue')
+      toast.success(
+        `Sauvegarde envoyée par email · ${json.events} événement(s), ${json.documentsIncluded}/${json.documentsTotal} document(s) inclus`
+      )
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Échec de la sauvegarde')
+    } finally {
+      setBackupRunning(false)
+    }
+  }
 
   useEffect(() => {
     if (!loading && !isAdmin) router.push('/')
@@ -124,6 +142,29 @@ export default function DashboardPage() {
               {a.label}
             </Link>
           ))}
+        </div>
+
+        {/* Sauvegarde manuelle */}
+        <div className="flex items-center justify-between gap-3 flex-wrap p-4 rounded-xl border border-slate-200 bg-slate-50 mb-8">
+          <div className="flex items-center gap-3">
+            <DatabaseBackup className="w-5 h-5 text-slate-500 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-slate-700">Sauvegarde complète</p>
+              <p className="text-xs text-slate-500">
+                Envoie par email toutes les données et documents joints. Automatique le 1ᵉʳ de chaque mois.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={triggerBackup}
+            disabled={backupRunning}
+            className="btn-secondary text-sm shrink-0"
+          >
+            {backupRunning
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Envoi en cours…</>
+              : <><DatabaseBackup className="w-4 h-4" /> Sauvegarder maintenant</>
+            }
+          </button>
         </div>
 
         {/* Historique */}
