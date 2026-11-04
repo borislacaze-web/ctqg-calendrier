@@ -9,6 +9,24 @@ import toast from 'react-hot-toast'
 import { createClient } from '@/lib/supabase/client'
 import type { CalendarEvent, Category, Subcategory, Season } from '@/types'
 
+/**
+ * Nom de fichier sûr pour la clé de stockage Supabase : retire les accents et
+ * remplace tout caractère problématique (espaces, [ ], #, parenthèses…) par « _ ».
+ * Le nom d'origine reste conservé tel quel dans la base pour l'affichage.
+ */
+function safeStorageName(name: string): string {
+  const dot = name.lastIndexOf('.')
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const ext  = dot > 0 ? name.slice(dot + 1) : ''
+  const cleanBase = base
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80) || 'document'
+  const cleanExt = ext.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+  return cleanExt ? `${cleanBase}.${cleanExt}` : cleanBase
+}
+
 const schema = z.object({
   title:           z.string().min(1, 'Le titre est obligatoire'),
   category_id:     z.string().min(1, 'La catégorie est obligatoire'),
@@ -155,11 +173,12 @@ export default function EventForm({
       }
 
       let eventId = event?.id
+      let savedMsg = 'Événement enregistré'
 
       if (event?.id) {
         const { error } = await supabase.from('events').update(payload).eq('id', event.id)
         if (error) throw error
-        toast.success('Événement modifié')
+        savedMsg = 'Événement modifié'
       } else {
         const { data: created, error } = await supabase
           .from('events')
@@ -168,32 +187,51 @@ export default function EventForm({
           .single()
         if (error) throw error
         eventId = created.id
-        toast.success(event?.title?.startsWith('Copie') ? 'Événement dupliqué' : 'Événement créé')
+        savedMsg = event?.title?.startsWith('Copie') ? 'Événement dupliqué' : 'Événement créé'
       }
 
-      // Upload des fichiers
+      // Upload des fichiers : chaque échec est collecté et signalé (plus de silence)
+      const failures: string[] = []
       if (files.length > 0 && eventId) {
         setUploading(true)
         for (const file of files) {
-          const path = `${eventId}/${Date.now()}-${file.name}`
+          const path = `${eventId}/${Date.now()}-${safeStorageName(file.name)}`
           const { error: uploadErr } = await supabase.storage
             .from('event-documents')
             .upload(path, file)
 
-          if (!uploadErr) {
-            const { data: urlData } = supabase.storage
-              .from('event-documents')
-              .getPublicUrl(path)
+          if (uploadErr) {
+            failures.push(`${file.name} (${uploadErr.message})`)
+            continue
+          }
 
-            await supabase.from('event_documents').insert({
-              event_id: eventId,
-              filename: file.name,
-              file_url: urlData.publicUrl,
-              file_size: file.size,
-            })
+          const { data: urlData } = supabase.storage
+            .from('event-documents')
+            .getPublicUrl(path)
+
+          const { error: insertErr } = await supabase.from('event_documents').insert({
+            event_id: eventId,
+            filename: file.name,
+            file_url: urlData.publicUrl,
+            file_size: file.size,
+          })
+
+          if (insertErr) {
+            // Fichier envoyé mais non référencé : on le retire pour ne pas laisser d'orphelin
+            await supabase.storage.from('event-documents').remove([path])
+            failures.push(`${file.name} (${insertErr.message})`)
           }
         }
         setUploading(false)
+      }
+
+      if (failures.length === 0) {
+        toast.success(files.length > 0 ? `${savedMsg} · ${files.length} document(s) ajouté(s)` : savedMsg)
+      } else {
+        toast.error(
+          `${savedMsg}, mais ${failures.length} document(s) non envoyé(s) : ${failures.join(' ; ')}`,
+          { duration: 10000 }
+        )
       }
 
       onSaved()
